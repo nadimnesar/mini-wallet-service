@@ -91,6 +91,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
     }
 
+    @ExceptionHandler(DuplicatePhoneException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicatePhone(DuplicatePhoneException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
+    }
+
     @ExceptionHandler(DuplicateGatewayRefException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateGatewayRef(DuplicateGatewayRefException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

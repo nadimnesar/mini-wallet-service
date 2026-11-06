@@ -106,6 +106,7 @@ public final class AppConstants {
         public static final String WALLET_NOT_FOUND = "WALLET_NOT_FOUND";
         public static final String TRANSACTION_NOT_FOUND = "TRANSACTION_NOT_FOUND";
         public static final String DUPLICATE_WALLET = "DUPLICATE_WALLET";
+        public static final String DUPLICATE_PHONE = "DUPLICATE_PHONE";
         public static final String DUPLICATE_GATEWAY_REF = "DUPLICATE_GATEWAY_REF";
         public static final String INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE";
         public static final String SAME_WALLET_TRANSFER = "SAME_WALLET_TRANSFER";
@@ -130,6 +131,7 @@ public final class AppConstants {
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
+        public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = Validation.PHONE_FORMAT;
