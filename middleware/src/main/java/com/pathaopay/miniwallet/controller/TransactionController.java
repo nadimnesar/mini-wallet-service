@@ -1,12 +1,11 @@
 package com.pathaopay.miniwallet.controller;
 
-import com.pathaopay.miniwallet.dto.*;
+import com.pathaopay.miniwallet.dto.TransactionDetailResponse;
+import com.pathaopay.miniwallet.dto.TransactionPageResponse;
 import com.pathaopay.miniwallet.service.TransactionService;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 
 @RestController
-@RequestMapping(path = "/api/v1")
+@RequestMapping(path = "/api/v1/transactions")
 @Validated
 public class TransactionController {
 
@@ -24,15 +23,7 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @PostMapping(path = "/transfers")
-    public ResponseEntity<TransferResponse> transfer(
-            @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
-            @RequestBody @Valid TransferRequest request) {
-        TransferResponse response = transactionService.transfer(request, idempotencyKey);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @GetMapping(path = "/transactions")
+    @GetMapping
     public ResponseEntity<TransactionPageResponse> listTransactions(
             @RequestParam(name = "wallet_id", required = false)
             String walletId,
@@ -60,7 +51,7 @@ public class TransactionController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping(path = "/transactions/{transactionId}")
+    @GetMapping(path = "/{transactionId}")
     public ResponseEntity<TransactionDetailResponse> getTransactionDetails(
             @PathVariable("transactionId") String transactionId) {
         TransactionDetailResponse response = transactionService.getTransactionDetails(transactionId);
