@@ -20,6 +20,7 @@ import com.pathaopay.miniwallet.repository.IdempotencyRepository;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.TransactionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,6 +32,7 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class DefaultTransactionService implements TransactionService {
 
     private static final String ADD_MONEY_OPERATION = "ADD_MONEY";
@@ -40,18 +42,6 @@ public class DefaultTransactionService implements TransactionService {
     private final IdempotencyRepository idempotencyRepository;
     private final PaymentGatewayClient paymentGatewayClient;
     private final TransactionTemplate transactionTemplate;
-
-    public DefaultTransactionService(WalletRepository walletRepository,
-                                     TransactionRepository transactionRepository,
-                                     IdempotencyRepository idempotencyRepository,
-                                     PaymentGatewayClient paymentGatewayClient,
-                                     TransactionTemplate transactionTemplate) {
-        this.walletRepository = walletRepository;
-        this.transactionRepository = transactionRepository;
-        this.idempotencyRepository = idempotencyRepository;
-        this.paymentGatewayClient = paymentGatewayClient;
-        this.transactionTemplate = transactionTemplate;
-    }
 
     /**
      * Credits the wallet once the card network's gateway confirms the payment.

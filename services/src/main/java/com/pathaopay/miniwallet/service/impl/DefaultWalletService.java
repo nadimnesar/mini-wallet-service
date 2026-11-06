@@ -12,19 +12,17 @@ import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.WalletService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class DefaultWalletService implements WalletService {
 
     private final WalletRepository walletRepository;
-
-    public DefaultWalletService(WalletRepository walletRepository) {
-        this.walletRepository = walletRepository;
-    }
 
     @Override
     @Transactional
