@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class JdbcIdempotencyRepository implements IdempotencyRepository {
 
     // If another transaction holds an uncommitted row for this key, PostgreSQL makes this INSERT wait
@@ -44,10 +46,6 @@ public class JdbcIdempotencyRepository implements IdempotencyRepository {
             rs.getString("error_message"));
 
     private final JdbcClient jdbcClient;
-
-    public JdbcIdempotencyRepository(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
-    }
 
     @Override
     public boolean tryClaim(String key, String operation, String requestHash) {

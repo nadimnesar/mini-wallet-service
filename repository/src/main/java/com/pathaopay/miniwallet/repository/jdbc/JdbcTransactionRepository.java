@@ -4,6 +4,7 @@ import com.pathaopay.miniwallet.model.PaymentMethod;
 import com.pathaopay.miniwallet.model.TransactionType;
 import com.pathaopay.miniwallet.model.WalletTransaction;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -14,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class JdbcTransactionRepository implements TransactionRepository {
 
     private static final String COLUMNS = """
@@ -57,10 +59,6 @@ public class JdbcTransactionRepository implements TransactionRepository {
             rs.getObject("created_at", OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
-
-    public JdbcTransactionRepository(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
-    }
 
     @Override
     public Optional<WalletTransaction> findLatestEntry(UUID walletId) {

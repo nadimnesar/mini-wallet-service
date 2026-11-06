@@ -3,6 +3,7 @@ package com.pathaopay.miniwallet.repository.jdbc;
 import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.repository.WalletRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class JdbcWalletRepository implements WalletRepository {
 
     private static final String WALLET_COLUMNS = "id, user_id, phone, currency, created_at, updated_at";
@@ -54,10 +56,6 @@ public class JdbcWalletRepository implements WalletRepository {
             rs.getObject("updated_at", OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
-
-    public JdbcWalletRepository(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
-    }
 
     @Override
     public Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency) {
