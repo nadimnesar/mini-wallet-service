@@ -6,7 +6,8 @@ Guidance for Claude Code when working in this repository.
 
 - Maven multi-module Spring Boot 4 / Java 25 service: `common`, `models`, `repository`, `clients`, `services`, `middleware` (the only runnable module).
 - `docker compose up` (add `--build` after code changes) runs the whole stack: the PostgreSQL primary (write, `:5432`), the streaming read replica (`:5433`), and the app (`:8080`).
-- Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
+- Module roles: `repository` owns our database (interfaces, `jdbc/` implementations, `DataSourceConfig`, Liquibase changelogs); `clients` only talks to external systems (payment gateway).
+- Read/write routing lives in `repository` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 
 ## Committing

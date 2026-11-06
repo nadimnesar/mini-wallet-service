@@ -10,7 +10,8 @@ The project is structured as a Maven multi-module architecture with compiler-enf
 
 * **`common`**: Shared utilities, error codes, and base domain exceptions.
 * **`models`**: Pure domain models, value objects, and API Data Transfer Objects (DTOs).
-* **`clients`**: Data access interfaces, repository implementations, and database configurations.
+* **`repository`**: Everything about our own database: repository interfaces, their JDBC implementations, the read/write `DataSourceConfig`, and the Liquibase schema.
+* **`clients`**: Clients for external systems. Currently the Visa/Mastercard payment gateway.
 * **`services`**: Core business domain logic, financial orchestration, and transaction handling.
 * **`middleware`**: Runnable Spring Boot application module containing REST controllers, filters, request validation, and application configuration. Only this module produces an executable fat JAR.
 
@@ -39,7 +40,7 @@ docker compose up
 | `postgres-primary` | Write node | `5432` | Accepts reads and writes (`POSTGRESQL_REPLICATION_MODE=master`) |
 | `postgres-replica` | Read node | `5433` | Hot standby (`POSTGRESQL_REPLICATION_MODE=slave`); rejects writes |
 
-The `clients` module (`DataSourceConfig`) exposes one `DataSource` that routes on the transaction's read-only flag:
+The `repository` module (`DataSourceConfig`) exposes one `DataSource` that routes on the transaction's read-only flag:
 `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary. Replication is asynchronous, so reads that must see a write that just happened (for example, a balance check before a debit) must run in a read-write transaction.
 Connection settings are under `miniwallet.datasource.write.*` / `miniwallet.datasource.read.*` in `application.properties`. You can override them with `DB_WRITE_URL`, `DB_READ_URL`, `DB_USERNAME` and `DB_PASSWORD`.
 If you recreate the primary's data, also reset the replica: `docker compose down -v`. Do the same when `latest` moves to a new PostgreSQL major version, because the old data files can't be opened by the new version.

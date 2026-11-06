@@ -25,6 +25,10 @@
 		</dependency>
 		<dependency>
 			<groupId>com.pathaopay</groupId>
+			<artifactId>repository</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.pathaopay</groupId>
 			<artifactId>clients</artifactId>
 		</dependency>
 		<dependency>

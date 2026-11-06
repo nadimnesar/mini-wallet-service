@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.client.repository;
+package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;

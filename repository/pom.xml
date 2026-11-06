@@ -12,11 +12,29 @@
     <artifactId>repository</artifactId>
     <packaging>jar</packaging>
     <name>repository</name>
+    <description>Our database: repository interfaces, JDBC implementations, datasource routing and Liquibase schema</description>
 
     <dependencies>
         <dependency>
             <groupId>com.pathaopay</groupId>
+            <artifactId>common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pathaopay</groupId>
             <artifactId>models</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-liquibase</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 
