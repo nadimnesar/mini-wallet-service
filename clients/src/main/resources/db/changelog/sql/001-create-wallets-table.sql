@@ -1,0 +1,19 @@
+--liquibase formatted sql
+
+--changeset miniwallet:001-create-wallets-table
+--comment: Wallets. One wallet per user; balance in poisha and never negative; BDT only.
+CREATE TABLE wallets (
+    id         VARCHAR(64)  NOT NULL,
+    user_id    TEXT         NOT NULL,
+    phone      VARCHAR(11)  NOT NULL,
+    currency   CHAR(3)      NOT NULL DEFAULT 'BDT',
+    balance    BIGINT       NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT pk_wallets PRIMARY KEY (id),
+    CONSTRAINT uq_wallets_user_id UNIQUE (user_id),
+    CONSTRAINT ck_wallets_balance_non_negative CHECK (balance >= 0),
+    CONSTRAINT ck_wallets_currency_bdt CHECK (currency = 'BDT'),
+    CONSTRAINT ck_wallets_phone_format CHECK (phone ~ '^01[0-9]{9}$')
+);
+--rollback DROP TABLE wallets;
