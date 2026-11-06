@@ -1,34 +1,26 @@
 name: mini-wallet
 
-# Bitnami images configure streaming replication from env vars alone.
-# Since Aug 2025 Bitnami's free tier publishes only the `latest` tag (kept up to date);
-# versioned tags require a subscription. A new PostgreSQL major in `latest` needs a
-# data reset in dev: `docker compose down -v`.
 x-postgres-common: &postgres-common
   image: bitnami/postgresql:latest
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U $${POSTGRESQL_USERNAME} -d $${POSTGRESQL_DATABASE}"]
+    test: [ "CMD-SHELL", "pg_isready -U miniwallet -d miniwallet" ]
     interval: 5s
     timeout: 5s
     retries: 10
 
-x-postgres-env: &postgres-env
-  POSTGRESQL_DATABASE: ${POSTGRES_DB:-miniwallet}
-  POSTGRESQL_USERNAME: ${POSTGRES_USER:-miniwallet}
-  POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-miniwallet}
-  POSTGRESQL_REPLICATION_USER: ${REPLICATION_USER:-replicator}
-  POSTGRESQL_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicator}
-
 services:
-  # Write node: accepts all reads and writes, streams WAL to the replica.
   postgres-primary:
     <<: *postgres-common
     container_name: miniwallet-postgres-primary
     environment:
-      <<: *postgres-env
+      POSTGRESQL_DATABASE: miniwallet
+      POSTGRESQL_USERNAME: miniwallet
+      POSTGRESQL_PASSWORD: miniwallet
       POSTGRESQL_REPLICATION_MODE: master
+      POSTGRESQL_REPLICATION_USER: replicator
+      POSTGRESQL_REPLICATION_PASSWORD: replicator
     ports:
-      - "${POSTGRES_PRIMARY_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - postgres-primary-data:/bitnami/postgresql
 
@@ -37,12 +29,16 @@ services:
     <<: *postgres-common
     container_name: miniwallet-postgres-replica
     environment:
-      <<: *postgres-env
+      POSTGRESQL_DATABASE: miniwallet
+      POSTGRESQL_USERNAME: miniwallet
+      POSTGRESQL_PASSWORD: miniwallet
       POSTGRESQL_REPLICATION_MODE: slave
+      POSTGRESQL_REPLICATION_USER: replicator
+      POSTGRESQL_REPLICATION_PASSWORD: replicator
       POSTGRESQL_MASTER_HOST: postgres-primary
       POSTGRESQL_MASTER_PORT_NUMBER: 5432
     ports:
-      - "${POSTGRES_REPLICA_PORT:-5433}:5432"
+      - "5433:5432"
     volumes:
       - postgres-replica-data:/bitnami/postgresql
     depends_on:
@@ -55,12 +51,12 @@ services:
     image: mini-wallet-service:latest
     container_name: miniwallet-app
     environment:
-      DB_WRITE_URL: jdbc:postgresql://postgres-primary:5432/${POSTGRES_DB:-miniwallet}
-      DB_READ_URL: jdbc:postgresql://postgres-replica:5432/${POSTGRES_DB:-miniwallet}
-      DB_USERNAME: ${POSTGRES_USER:-miniwallet}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-miniwallet}
+      DB_WRITE_URL: jdbc:postgresql://postgres-primary:5432/miniwallet
+      DB_READ_URL: jdbc:postgresql://postgres-replica:5432/miniwallet
+      DB_USERNAME: miniwallet
+      DB_PASSWORD: miniwallet
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "8080:8080"
     depends_on:
       postgres-primary:
         condition: service_healthy
