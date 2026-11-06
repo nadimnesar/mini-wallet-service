@@ -59,6 +59,8 @@ To run the complete automated test suite across all modules:
 ./mvnw clean test
 ```
 
+Docker must be running. The integration tests (`WalletServiceIntegrationTest` in `middleware`) use Testcontainers to start a real PostgreSQL (`postgres:18-alpine`), apply the Liquibase changesets, and run the real service and repository against it. No in-memory database is used.
+
 To run a specific module's test suite:
 ```bash
 ./mvnw test -pl middleware
