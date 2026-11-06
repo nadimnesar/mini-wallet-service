@@ -18,6 +18,8 @@ public final class AppConstants {
         public static final long POISHA_PER_BDT = 100;
         public static final long MIN_AMOUNT_POISHA = 100;
         public static final long MAX_AMOUNT_POISHA = 2_500_000;
+        /** ISO 4217 code of the only supported currency. */
+        public static final String CURRENCY_CODE = "BDT";
 
         private Money() {
         }
@@ -80,6 +82,8 @@ public final class AppConstants {
         public static final String AMOUNT_MAX = "amount must be at most " + Money.MAX_AMOUNT_POISHA
                 + " poisha (" + Money.MAX_AMOUNT_POISHA / Money.POISHA_PER_BDT + " BDT)";
 
+        public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
+
         public static final String NOTE_SIZE = "note must not exceed " + NOTE_MAX_LENGTH + " characters";
 
         private Validation() {
@@ -100,6 +104,10 @@ public final class AppConstants {
         public static final String DUPLICATE_WALLET = "DUPLICATE_WALLET";
         public static final String DUPLICATE_PHONE = "DUPLICATE_PHONE";
         public static final String DUPLICATE_GATEWAY_REF = "DUPLICATE_GATEWAY_REF";
+        public static final String PAYMENT_DECLINED = "PAYMENT_DECLINED";
+        public static final String PAYMENT_NOT_FOUND = "PAYMENT_NOT_FOUND";
+        public static final String PAYMENT_MISMATCH = "PAYMENT_MISMATCH";
+        public static final String PAYMENT_GATEWAY_ERROR = "PAYMENT_GATEWAY_ERROR";
         public static final String INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE";
         public static final String SAME_WALLET_TRANSFER = "SAME_WALLET_TRANSFER";
         public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
@@ -125,6 +133,18 @@ public final class AppConstants {
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
+        public static final String DUPLICATE_GATEWAY_REF_PREFIX = "This gateway_ref has already been used: ";
+        public static final String IDEMPOTENCY_KEY_REUSED =
+                Headers.IDEMPOTENCY_KEY + " has already been used with a different request";
+        /** Format with network, gateway_ref, status and decline reason. */
+        public static final String PAYMENT_DECLINED = "%s payment %s was not captured (status: %s, reason: %s)";
+        /** Format with network and gateway_ref. */
+        public static final String PAYMENT_NOT_FOUND = "%s gateway has no payment with gateway_ref %s";
+        /** Format with gateway_ref, requested and confirmed details. */
+        public static final String PAYMENT_MISMATCH = "Gateway confirmation for %s does not match the request "
+                + "(requested %s, confirmed %s)";
+        /** Format with network. */
+        public static final String PAYMENT_GATEWAY_ERROR = "%s payment gateway is unavailable. Please retry later.";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = Validation.PHONE_FORMAT;
         /** Format with the HTTP method. */
@@ -133,6 +153,17 @@ public final class AppConstants {
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
 
         private ErrorMessages() {
+        }
+    }
+
+    /** Mock-able external payment gateway (one HTTP API per card network). */
+    public static final class PaymentGateway {
+        public static final String PROPERTIES_PREFIX = "miniwallet.payment-gateway";
+        public static final String API_KEY_HEADER = "X-Api-Key";
+        /** Format with the lower-case network name, e.g. visa. */
+        public static final String VERIFY_PATH = "/%s/v1/payments/verify";
+
+        private PaymentGateway() {
         }
     }
 

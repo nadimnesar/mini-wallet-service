@@ -17,4 +17,12 @@ public abstract class MiniWalletException extends RuntimeException {
     public String getErrorCode() {
         return errorCode;
     }
+
+    /**
+     * Whether the failure is transient (e.g. a gateway outage). Retryable failures are not stored
+     * against an Idempotency-Key, so the client can retry with the same key.
+     */
+    public boolean isRetryable() {
+        return false;
+    }
 }
