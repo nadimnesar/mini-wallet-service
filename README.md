@@ -75,7 +75,7 @@ To run a specific module's test suite:
 |--------|------|-------------|-----------------------|
 | `POST` | `/api/v1/wallets` | Create a new user wallet | No |
 | `GET`  | `/api/v1/wallets/{wallet_id}` | Retrieve wallet details and balance | No |
-| `POST` | `/api/v1/wallets/{wallet_id}/add-money` | Add money to a wallet after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
+| `POST` | `/api/v1/wallets/add-money` | Add money to a wallet (`wallet_id` in body) after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
 | `POST` | `/api/v1/transfers` | P2P transfer between two wallets | **Yes** (`Idempotency-Key`) |
 | `GET`  | `/api/v1/transactions` | Query transactions across/by wallet (`?wallet_id=...`) | No |
 | `GET`  | `/api/v1/wallets/{wallet_id}/transactions` | Query paginated transaction history for a wallet | No |
@@ -84,10 +84,11 @@ To run a specific module's test suite:
 ### Add money
 
 ```http
-POST /api/v1/wallets/{wallet_id}/add-money
+POST /api/v1/wallets/add-money
 Idempotency-Key: <unique string, max 255 chars>
 
-{ "amount": 50000, "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA" }
+{ "wallet_id": "01a1b1c3-3da8-75d3-a5d1-33e2990fe47d", "amount": 50000,
+  "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA" }
 ```
 
 `gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network. The response (201) is built from the ledger entry:
@@ -100,7 +101,7 @@ Idempotency-Key: <unique string, max 255 chars>
 | Error | Status | When |
 |---|---|---|
 | `MISSING_IDEMPOTENCY_KEY` | 400 | No `Idempotency-Key` header |
-| `VALIDATION_ERROR` / `INVALID_PAYLOAD` | 400 | Amount outside 100–2,500,000 poisha, `gateway_ref` not a UUID, unknown `payment_method`. The message names the field, e.g. `Invalid value for field: gateway_ref` |
+| `VALIDATION_ERROR` / `INVALID_PAYLOAD` | 400 | Missing `wallet_id`, amount outside 100–2,500,000 poisha, `wallet_id` / `gateway_ref` not a UUID, unknown `payment_method`. The message names the field, e.g. `Invalid value for field: gateway_ref` |
 | `PAYMENT_DECLINED` | 402 | Gateway reports the payment as declined or not yet captured |
 | `WALLET_NOT_FOUND` | 404 | Unknown wallet |
 | `DUPLICATE_GATEWAY_REF` | 409 | The `gateway_ref` already credited a wallet |

@@ -66,7 +66,8 @@ public class DefaultTransactionService implements TransactionService {
      * read timeout), holding a connection and the key's row lock, but no wallet lock.
      */
     @Override
-    public AddMoneyResponse addMoney(UUID walletId, AddMoneyRequest request, String idempotencyKey) {
+    public AddMoneyResponse addMoney(AddMoneyRequest request, String idempotencyKey) {
+        UUID walletId = request.walletId();
         String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, walletId.toString(),
                 request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name()));
 

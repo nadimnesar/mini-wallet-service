@@ -10,8 +10,12 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
-/** Body of {@code POST /api/v1/wallets/{wallet_id}/add-money}. The wallet comes from the path. */
+/** Body of {@code POST /api/v1/wallets/add-money}. */
 public record AddMoneyRequest(
+        @NotNull(message = Validation.WALLET_ID_REQUIRED)
+        @JsonProperty("wallet_id")
+        UUID walletId,
+
         @NotNull(message = Validation.AMOUNT_REQUIRED)
         @Min(value = Money.MIN_AMOUNT_POISHA, message = Validation.AMOUNT_MIN)
         @Max(value = Money.MAX_AMOUNT_POISHA, message = Validation.AMOUNT_MAX)

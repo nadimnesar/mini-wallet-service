@@ -105,7 +105,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void missingIdempotencyKeyIsRejected() {
-        Response response = send(walletId, null, body(50000, ref("GW-1"), "VISA"));
+        Response response = send(null, body(walletId, 50000, ref("GW-1"), "VISA"));
 
         assertError(response, 400, "MISSING_IDEMPOTENCY_KEY");
         assertEquals(0, gatewayCalls("visa"));
@@ -221,6 +221,26 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void walletIdIsRequiredInTheBody() {
+        Response response = send("key-1", """
+                {"amount": 50000, "gateway_ref": "%s", "payment_method": "VISA"}""".formatted(ref("GW-1")));
+
+        assertError(response, 400, "VALIDATION_ERROR");
+        assertEquals("walletId: wallet_id is required", response.body().get("error").get("message").asString());
+        assertEquals(0, gatewayCalls("visa"));
+    }
+
+    @Test
+    void walletIdMustBeAUuid() {
+        Response response = send("key-1", """
+                {"wallet_id": "w_123", "amount": 50000, "gateway_ref": "%s", "payment_method": "VISA"}"""
+                .formatted(ref("GW-1")));
+
+        assertError(response, 400, "INVALID_PAYLOAD");
+        assertEquals("Invalid value for field: wallet_id", response.body().get("error").get("message").asString());
+    }
+
+    @Test
     void amountOutsideLimitsIsRejected() {
         assertError(addMoney(walletId, "key-1", 99, ref("GW-1"), "VISA"), 400, "VALIDATION_ERROR");
         assertError(addMoney(walletId, "key-2", 2_500_001, ref("GW-2"), "VISA"), 400, "VALIDATION_ERROR");
@@ -249,17 +269,18 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     private Response addMoney(UUID wallet, String key, long amount, String gatewayRef, String paymentMethod) {
-        return send(wallet, key, body(amount, gatewayRef, paymentMethod));
+        return send(key, body(wallet, amount, gatewayRef, paymentMethod));
     }
 
-    private static String body(long amount, String gatewayRef, String paymentMethod) {
+    private static String body(UUID wallet, long amount, String gatewayRef, String paymentMethod) {
         return """
-                {"amount": %d, "gateway_ref": "%s", "payment_method": "%s"}""".formatted(amount, gatewayRef, paymentMethod);
+                {"wallet_id": "%s", "amount": %d, "gateway_ref": "%s", "payment_method": "%s"}"""
+                .formatted(wallet, amount, gatewayRef, paymentMethod);
     }
 
-    private Response send(UUID wallet, String key, String body) {
+    private Response send(String key, String body) {
         return api.post()
-                .uri("/api/v1/wallets/{id}/add-money", wallet)
+                .uri("/api/v1/wallets/add-money")
                 .headers(h -> {
                     if (key != null) {
                         h.set("Idempotency-Key", key);
