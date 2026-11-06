@@ -45,6 +45,16 @@ services:
       postgres-primary:
         condition: service_healthy
 
+  # Mock payment gateway for Visa and Mastercard (WireMock). Stubs: docker/wiremock.
+  payment-gateway:
+    image: wiremock/wiremock:3.13.2
+    container_name: miniwallet-payment-gateway
+    command: ["--port", "8080", "--disable-banner"]
+    ports:
+      - "8089:8080"
+    volumes:
+      - ./docker/wiremock:/home/wiremock:ro
+
   # Spring Boot application: writes go to the primary, readOnly transactions to the replica.
   app:
     build: .
@@ -55,6 +65,7 @@ services:
       DB_READ_URL: jdbc:postgresql://postgres-replica:5432/miniwallet
       DB_USERNAME: miniwallet
       DB_PASSWORD: miniwallet
+      PAYMENT_GATEWAY_URL: http://payment-gateway:8080
     ports:
       - "8080:8080"
     depends_on:
@@ -62,6 +73,8 @@ services:
         condition: service_healthy
       postgres-replica:
         condition: service_healthy
+      payment-gateway:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

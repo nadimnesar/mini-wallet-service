@@ -1,0 +1,8 @@
+{
+  "gateway_ref": "{{jsonPath request.body '$.gateway_ref'}}",
+  "status": "PENDING",
+  "amount": {{jsonPath request.body '$.amount'}},
+  "currency": "{{jsonPath request.body '$.currency'}}",
+  "card_network": "{{upper request.pathSegments.[0]}}",
+  "decline_reason": "AWAITING_3DS_AUTHENTICATION"
+}
