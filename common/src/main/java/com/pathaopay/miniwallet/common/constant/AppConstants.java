@@ -23,6 +23,14 @@ public final class AppConstants {
         }
     }
 
+    /** Prefixes for generated public identifiers. */
+    public static final class Ids {
+        public static final String WALLET_PREFIX = "w_";
+
+        private Ids() {
+        }
+    }
+
     /** Bangladeshi mobile number formats. */
     public static final class Phone {
         /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */
@@ -121,6 +129,7 @@ public final class AppConstants {
         public static final String MALFORMED_JSON = "Malformed or unreadable JSON request body";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
+        public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = Validation.PHONE_FORMAT;
