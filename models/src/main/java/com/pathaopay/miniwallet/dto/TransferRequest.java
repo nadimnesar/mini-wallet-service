@@ -1,5 +1,7 @@
 package com.pathaopay.miniwallet.dto;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants.Money;
+import com.pathaopay.miniwallet.common.constant.AppConstants.Validation;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -9,25 +11,25 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record TransferRequest(
-        @NotBlank(message = "from_wallet_id is required")
-        @Size(min = 1, max = 64, message = "from_wallet_id must be between 1 and 64 characters")
-        @Pattern(regexp = "^[a-zA-Z0-9_.-]+$", message = "from_wallet_id must contain only alphanumeric characters, underscores, dashes, or dots")
+        @NotBlank(message = Validation.FROM_WALLET_ID_REQUIRED)
+        @Size(min = Validation.ID_MIN_LENGTH, max = Validation.ID_MAX_LENGTH, message = Validation.FROM_WALLET_ID_SIZE)
+        @Pattern(regexp = Validation.ID_PATTERN, message = Validation.FROM_WALLET_ID_PATTERN)
         @JsonProperty("from_wallet_id")
         String fromWalletId,
 
-        @NotBlank(message = "to_wallet_id is required")
-        @Size(min = 1, max = 64, message = "to_wallet_id must be between 1 and 64 characters")
-        @Pattern(regexp = "^[a-zA-Z0-9_.-]+$", message = "to_wallet_id must contain only alphanumeric characters, underscores, dashes, or dots")
+        @NotBlank(message = Validation.TO_WALLET_ID_REQUIRED)
+        @Size(min = Validation.ID_MIN_LENGTH, max = Validation.ID_MAX_LENGTH, message = Validation.TO_WALLET_ID_SIZE)
+        @Pattern(regexp = Validation.ID_PATTERN, message = Validation.TO_WALLET_ID_PATTERN)
         @JsonProperty("to_wallet_id")
         String toWalletId,
 
-        @NotNull(message = "amount is required")
-        @Min(value = 100, message = "amount must be at least 100 poisha (1 BDT)")
-        @Max(value = 2500000, message = "amount must be at most 2500000 poisha (25000 BDT)")
+        @NotNull(message = Validation.AMOUNT_REQUIRED)
+        @Min(value = Money.MIN_AMOUNT_POISHA, message = Validation.AMOUNT_MIN)
+        @Max(value = Money.MAX_AMOUNT_POISHA, message = Validation.AMOUNT_MAX)
         @JsonProperty("amount")
         Long amount,
 
-        @Size(max = 255, message = "note must not exceed 255 characters")
+        @Size(max = Validation.NOTE_MAX_LENGTH, message = Validation.NOTE_SIZE)
         @JsonProperty("note")
         String note
 ) {}

@@ -1,5 +1,8 @@
 package com.pathaopay.miniwallet.advice;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
+import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
+import com.pathaopay.miniwallet.common.constant.AppConstants.Headers;
 import com.pathaopay.miniwallet.common.*;
 import com.pathaopay.miniwallet.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -27,15 +30,15 @@ public class GlobalExceptionHandler {
         String detailMessage = ex.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .findFirst()
-                .orElse("Validation failed");
+                .orElse(ErrorMessages.VALIDATION_FAILED);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("VALIDATION_ERROR", detailMessage));
+                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, detailMessage));
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("VALIDATION_ERROR", "Invalid parameter or header value"));
+                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, ErrorMessages.INVALID_PARAMETER_OR_HEADER));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -43,31 +46,31 @@ public class GlobalExceptionHandler {
         String detailMessage = ex.getConstraintViolations().stream()
                 .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
                 .findFirst()
-                .orElse("Constraint violation");
+                .orElse(ErrorMessages.CONSTRAINT_VIOLATION);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("VALIDATION_ERROR", detailMessage));
+                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, detailMessage));
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeader(MissingRequestHeaderException ex) {
-        if ("Idempotency-Key".equalsIgnoreCase(ex.getHeaderName())) {
+        if (Headers.IDEMPOTENCY_KEY.equalsIgnoreCase(ex.getHeaderName())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.of("MISSING_IDEMPOTENCY_KEY", "Idempotency-Key header is required"));
+                    .body(ErrorResponse.of(ErrorCodes.MISSING_IDEMPOTENCY_KEY, ErrorMessages.IDEMPOTENCY_KEY_REQUIRED));
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("MISSING_HEADER", "Required header '" + ex.getHeaderName() + "' is missing"));
+                .body(ErrorResponse.of(ErrorCodes.MISSING_HEADER, ErrorMessages.MISSING_HEADER.formatted(ex.getHeaderName())));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("INVALID_PAYLOAD", "Malformed or unreadable JSON request body"));
+                .body(ErrorResponse.of(ErrorCodes.INVALID_PAYLOAD, ErrorMessages.MALFORMED_JSON));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of("INVALID_ARGUMENT", "Invalid argument for parameter: " + ex.getName()));
+                .body(ErrorResponse.of(ErrorCodes.INVALID_ARGUMENT, ErrorMessages.INVALID_ARGUMENT_PREFIX + ex.getName()));
     }
 
     @ExceptionHandler(WalletNotFoundException.class)
@@ -127,19 +130,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of("NOT_FOUND", "Resource not found"));
+                .body(ErrorResponse.of(ErrorCodes.NOT_FOUND, ErrorMessages.RESOURCE_NOT_FOUND));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(ErrorResponse.of("METHOD_NOT_ALLOWED", "HTTP method " + ex.getMethod() + " is not supported for this endpoint"));
+                .body(ErrorResponse.of(ErrorCodes.METHOD_NOT_ALLOWED, ErrorMessages.METHOD_NOT_SUPPORTED.formatted(ex.getMethod())));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        log.error("Unhandled server exception encountered: ", ex);
+        log.error(ErrorMessages.UNHANDLED_EXCEPTION_LOG, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of("INTERNAL_SERVER_ERROR", "An unexpected error occurred. Please try again later."));
+                .body(ErrorResponse.of(ErrorCodes.INTERNAL_SERVER_ERROR, ErrorMessages.UNEXPECTED_ERROR));
     }
 }
