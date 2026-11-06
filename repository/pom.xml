@@ -13,4 +13,11 @@
     <packaging>jar</packaging>
     <name>repository</name>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.pathaopay</groupId>
+            <artifactId>models</artifactId>
+        </dependency>
+    </dependencies>
+
 </project>
