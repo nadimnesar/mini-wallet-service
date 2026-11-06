@@ -5,6 +5,7 @@ import com.pathaopay.miniwallet.dto.TransactionPageResponse;
 import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -15,13 +16,10 @@ import java.time.Instant;
 @RestController
 @RequestMapping(path = "/api/v1/transactions")
 @Validated
+@RequiredArgsConstructor
 public class TransactionController {
 
     private final TransactionService transactionService;
-
-    public TransactionController(TransactionService transactionService) {
-        this.transactionService = transactionService;
-    }
 
     @GetMapping
     public ResponseEntity<TransactionPageResponse> listTransactions(

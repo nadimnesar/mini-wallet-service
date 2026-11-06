@@ -4,6 +4,7 @@ import com.pathaopay.miniwallet.dto.TransferRequest;
 import com.pathaopay.miniwallet.dto.TransferResponse;
 import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -12,13 +13,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping(path = "/api/v1/transfers")
 @Validated
+@RequiredArgsConstructor
 public class TransferController {
 
     private final TransactionService transactionService;
-
-    public TransferController(TransactionService transactionService) {
-        this.transactionService = transactionService;
-    }
 
     @PostMapping
     public ResponseEntity<TransferResponse> transfer(

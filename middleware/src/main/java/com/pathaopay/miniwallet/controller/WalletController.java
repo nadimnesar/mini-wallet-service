@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,15 +22,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping(path = "/api/v1/wallets")
 @Validated
+@RequiredArgsConstructor
 public class WalletController {
 
     private final WalletService walletService;
     private final TransactionService transactionService;
-
-    public WalletController(WalletService walletService, TransactionService transactionService) {
-        this.walletService = walletService;
-        this.transactionService = transactionService;
-    }
 
     @PostMapping
     public ResponseEntity<WalletResponse> createWallet(@RequestBody @Valid CreateWalletRequest request) {

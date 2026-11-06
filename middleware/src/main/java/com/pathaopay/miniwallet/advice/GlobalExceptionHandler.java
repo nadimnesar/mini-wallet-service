@@ -6,8 +6,7 @@ import com.pathaopay.miniwallet.common.constant.AppConstants.Headers;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 import com.pathaopay.miniwallet.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -25,9 +24,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
             Map.entry(ErrorCodes.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
