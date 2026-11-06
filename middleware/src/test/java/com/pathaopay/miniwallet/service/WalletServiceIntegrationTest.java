@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.service;
 
+import com.pathaopay.miniwallet.common.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.InvalidPhoneNumberException;
 import com.pathaopay.miniwallet.common.WalletNotFoundException;
@@ -85,6 +86,26 @@ class WalletServiceIntegrationTest {
     }
 
     @Test
+    void rejectsSamePhoneForAnotherUserInAnyFormat() {
+        walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+
+        for (String samePhone : List.of("01711000001", "1711000001", "8801711000001", "+8801711000001")) {
+            DuplicatePhoneException ex = assertThrows(DuplicatePhoneException.class,
+                    () -> walletService.createWallet(new CreateWalletRequest("u_other", samePhone)));
+            assertEquals("A wallet already exists for phone: 01711000001", ex.getMessage());
+        }
+        assertEquals(1, walletCount());
+    }
+
+    @Test
+    void sameUserAndSamePhoneReportsDuplicateWallet() {
+        walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+
+        assertThrows(DuplicateWalletException.class,
+                () -> walletService.createWallet(new CreateWalletRequest("u_1001", "+8801711000001")));
+    }
+
+    @Test
     void rejectsInvalidPhoneWithoutWritingAnything() {
         assertThrows(InvalidPhoneNumberException.class,
                 () -> walletService.createWallet(new CreateWalletRequest("u_1001", "12345")));
@@ -131,6 +152,35 @@ class WalletServiceIntegrationTest {
         }
         assertEquals(1, created);
         assertEquals(attempts - 1, duplicates);
+        assertEquals(1, walletCount());
+    }
+
+    @Test
+    void concurrentCreatesForSamePhoneByDifferentUsersProduceExactlyOneWallet() throws Exception {
+        int attempts = 20;
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<WalletResponse>> results = new ArrayList<>();
+        try (ExecutorService executor = Executors.newFixedThreadPool(attempts)) {
+            for (int i = 0; i < attempts; i++) {
+                String userId = "u_phone_race_" + i;
+                results.add(executor.submit(() -> {
+                    start.await();
+                    return walletService.createWallet(new CreateWalletRequest(userId, "+8801911000009"));
+                }));
+            }
+            start.countDown();
+        }
+
+        int created = 0;
+        for (Future<WalletResponse> result : results) {
+            try {
+                result.get();
+                created++;
+            } catch (ExecutionException e) {
+                assertInstanceOf(DuplicatePhoneException.class, e.getCause());
+            }
+        }
+        assertEquals(1, created);
         assertEquals(1, walletCount());
     }
 
