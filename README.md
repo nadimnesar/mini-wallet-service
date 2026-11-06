@@ -109,6 +109,27 @@ Idempotency-Key: <unique string, max 255 chars>
 | `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | 422 | Gateway doesn't know the payment / captured a different amount, currency or network |
 | `PAYMENT_GATEWAY_ERROR` | 502 | Gateway unreachable, timed out or failed. Not stored, so retry with the same key |
 
+### Transfers
+
+```http
+POST /api/v1/transfers
+Idempotency-Key: <unique string, max 255 chars>
+
+{ "from_wallet_id": "…", "to_wallet_id": "…", "amount": 10000, "note": "Lunch" }
+```
+
+Response 201: `{ "transfer_id", "from_wallet_id", "to_wallet_id", "amount", "status": "COMPLETED", "created_at" }`. Both ledger legs (`TRANSFER_OUT` and `TRANSFER_IN`) are written in one database transaction with `transfer_id` as their `reference_id`; wallets are locked in ascending id order, so opposite concurrent transfers cannot deadlock. The optional `note` is validated (max 255 chars) and is part of the idempotency fingerprint, but it is not stored.
+
+| Error | Status | When |
+|---|---|---|
+| `MISSING_IDEMPOTENCY_KEY` / `VALIDATION_ERROR` / `INVALID_PAYLOAD` | 400 | Missing header, amount outside 100–2,500,000 poisha, wallet ids missing or not UUIDs |
+| `WALLET_NOT_FOUND` | 404 | Sender or receiver does not exist |
+| `INSUFFICIENT_BALANCE` / `SAME_WALLET_TRANSFER` / `IDEMPOTENCY_KEY_REUSED` | 422 | Sender balance too low / same wallet on both sides / same key, different request |
+
+### Transaction history
+
+`GET /api/v1/wallets/{wallet_id}/transactions` and `GET /api/v1/transactions?wallet_id=…` (wallet optional) take `type` (`ADD_MONEY`, `TRANSFER_OUT`, `TRANSFER_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are newest first and carry `transaction_id`, `type`, `amount`, `balance_after`, `counterparty_wallet_id`, `reference_id` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns one entry (with `wallet_id`; `404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`. These reads are served by the replica, so a just-written entry can appear after the replication delay.
+
 ### Mock payment gateway (WireMock)
 
 `docker compose up` also starts `payment-gateway` (WireMock, `localhost:8089`), loaded from `docker/wiremock`. The integration tests use the same stubs. The outcome is chosen by the first group of the `gateway_ref` UUID. The reserved prefixes are named after the resulting HTTP status:

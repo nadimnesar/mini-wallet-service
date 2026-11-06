@@ -92,7 +92,7 @@ paths:
 
   /api/v1/transfers:
     post:
-      summary: Transfer money between two wallets (not implemented yet)
+      summary: Transfer money between two wallets
       operationId: transfer
       tags: [Transfers]
       parameters:
@@ -116,13 +116,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /api/v1/transactions:
+  /api/v1/wallets/{walletId}/transactions:
     get:
-      summary: List transactions (not implemented yet)
-      operationId: listTransactions
-      tags: [Transactions]
+      summary: List a wallet's transactions, newest first
+      operationId: listWalletTransactions
+      tags: [Wallets]
       parameters:
-        - { name: wallet_id, in: query, schema: { type: string } }
+        - { name: walletId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
@@ -135,14 +135,40 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionPageResponse' }
         '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /api/v1/transactions:
+    get:
+      summary: List transactions across wallets, or of one wallet with wallet_id
+      operationId: listTransactions
+      tags: [Transactions]
+      parameters:
+        - { name: wallet_id, in: query, schema: { type: string, format: uuid } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: One page of transactions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionPageResponse' }
+        '400':
+          description: VALIDATION_ERROR, INVALID_ARGUMENT or INVALID_DATE_RANGE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404': { $ref: '#/components/responses/Error' }
 
   /api/v1/transactions/{transactionId}:
     get:
-      summary: Get one transaction (not implemented yet)
+      summary: Get one transaction (one ledger entry)
       operationId: getTransactionDetails
       tags: [Transactions]
       parameters:
-        - { name: transactionId, in: path, required: true, schema: { type: string } }
+        - { name: transactionId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
           description: Transaction found
@@ -231,30 +257,30 @@ components:
       type: object
       required: [from_wallet_id, to_wallet_id, amount]
       properties:
-        from_wallet_id: { type: string }
-        to_wallet_id: { type: string }
+        from_wallet_id: { type: string, format: uuid }
+        to_wallet_id: { type: string, format: uuid }
         amount: { $ref: '#/components/schemas/Amount' }
         note: { type: string, maxLength: 255 }
 
     TransferResponse:
       type: object
       properties:
-        transfer_id: { type: string }
-        from_wallet_id: { type: string }
-        to_wallet_id: { type: string }
+        transfer_id: { type: string, format: uuid }
+        from_wallet_id: { type: string, format: uuid }
+        to_wallet_id: { type: string, format: uuid }
         amount: { type: integer, format: int64 }
-        status: { type: string }
+        status: { type: string, enum: [COMPLETED] }
         created_at: { type: string, format: date-time }
 
     TransactionItemResponse:
       type: object
       properties:
-        transaction_id: { type: string }
+        transaction_id: { type: string, format: uuid }
         type: { $ref: '#/components/schemas/TransactionType' }
         amount: { type: integer, format: int64 }
         balance_after: { type: integer, format: int64 }
-        counterparty_wallet_id: { type: [string, 'null'] }
-        reference_id: { type: [string, 'null'] }
+        counterparty_wallet_id: { type: [string, 'null'], format: uuid }
+        reference_id: { type: string, format: uuid, description: gateway_ref for ADD_MONEY, transfer_id for transfers }
         created_at: { type: string, format: date-time }
 
     TransactionDetailResponse:
@@ -262,7 +288,7 @@ components:
         - $ref: '#/components/schemas/TransactionItemResponse'
         - type: object
           properties:
-            wallet_id: { type: string }
+            wallet_id: { type: string, format: uuid }
 
     TransactionPageResponse:
       type: object
