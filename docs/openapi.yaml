@@ -1,0 +1,285 @@
+openapi: 3.1.0
+info:
+  title: Mini Wallet Service
+  version: 0.0.1
+  description: All amounts are integer poisha (1 BDT = 100 poisha).
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /api/v1/wallets:
+    post:
+      summary: Create a wallet
+      operationId: createWallet
+      tags: [Wallets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWalletRequest' }
+      responses:
+        '201':
+          description: Wallet created with balance 0
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalletResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409':
+          description: DUPLICATE_WALLET or DUPLICATE_PHONE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/wallets/{walletId}:
+    get:
+      summary: Get a wallet and its balance
+      operationId: getWallet
+      tags: [Wallets]
+      parameters:
+        - name: walletId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Wallet found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WalletResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /api/v1/wallets/add-money:
+    post:
+      summary: Add money from a card payment captured by the gateway
+      operationId: addMoney
+      tags: [Wallets]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddMoneyRequest' }
+      responses:
+        '201':
+          description: Money added (also returned on an idempotent replay)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddMoneyResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '402':
+          description: PAYMENT_DECLINED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: DUPLICATE_GATEWAY_REF
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: PAYMENT_NOT_FOUND, PAYMENT_MISMATCH or IDEMPOTENCY_KEY_REUSED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: PAYMENT_GATEWAY_ERROR (retryable with the same key)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/transfers:
+    post:
+      summary: Transfer money between two wallets (not implemented yet)
+      operationId: transfer
+      tags: [Transfers]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferRequest' }
+      responses:
+        '201':
+          description: Transfer completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422':
+          description: INSUFFICIENT_BALANCE, SAME_WALLET_TRANSFER or IDEMPOTENCY_KEY_REUSED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/v1/transactions:
+    get:
+      summary: List transactions (not implemented yet)
+      operationId: listTransactions
+      tags: [Transactions]
+      parameters:
+        - { name: wallet_id, in: query, schema: { type: string } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: One page of transactions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionPageResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /api/v1/transactions/{transactionId}:
+    get:
+      summary: Get one transaction (not implemented yet)
+      operationId: getTransactionDetails
+      tags: [Transactions]
+      parameters:
+        - { name: transactionId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Transaction found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionDetailResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Same key and body replays the stored result; same key with a different body returns 422.
+      schema: { type: string, minLength: 1, maxLength: 255 }
+
+  responses:
+    Error:
+      description: Error (see error.code)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    Amount:
+      type: integer
+      format: int64
+      minimum: 100
+      maximum: 2500000
+      description: Poisha
+
+    PaymentMethod:
+      type: string
+      enum: [VISA, MASTERCARD]
+
+    TransactionType:
+      type: string
+      enum: [ADD_MONEY, TRANSFER_IN, TRANSFER_OUT]
+
+    CreateWalletRequest:
+      type: object
+      required: [user_id, phone]
+      properties:
+        user_id: { type: string, format: uuid }
+        phone:
+          type: string
+          pattern: '^(?:\+?880|0)?(1\d{9})$'
+          description: Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; stored as 01XXXXXXXXX
+          example: '+8801712345678'
+
+    WalletResponse:
+      type: object
+      properties:
+        wallet_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        phone: { type: string, example: '01712345678' }
+        currency: { type: string, enum: [BDT] }
+        balance: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+
+    AddMoneyRequest:
+      type: object
+      required: [wallet_id, amount, gateway_ref, payment_method]
+      properties:
+        wallet_id: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/Amount' }
+        gateway_ref:
+          type: string
+          format: uuid
+          description: Payment reference from the card gateway; credits only once
+        payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+
+    AddMoneyResponse:
+      type: object
+      properties:
+        transaction_id: { type: string, format: uuid }
+        wallet_id: { type: string, format: uuid }
+        added_amount: { type: integer, format: int64 }
+        balance: { type: integer, format: int64 }
+        gateway_ref: { type: string, format: uuid }
+        payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+        created_at: { type: string, format: date-time }
+
+    TransferRequest:
+      type: object
+      required: [from_wallet_id, to_wallet_id, amount]
+      properties:
+        from_wallet_id: { type: string }
+        to_wallet_id: { type: string }
+        amount: { $ref: '#/components/schemas/Amount' }
+        note: { type: string, maxLength: 255 }
+
+    TransferResponse:
+      type: object
+      properties:
+        transfer_id: { type: string }
+        from_wallet_id: { type: string }
+        to_wallet_id: { type: string }
+        amount: { type: integer, format: int64 }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+
+    TransactionItemResponse:
+      type: object
+      properties:
+        transaction_id: { type: string }
+        type: { $ref: '#/components/schemas/TransactionType' }
+        amount: { type: integer, format: int64 }
+        balance_after: { type: integer, format: int64 }
+        counterparty_wallet_id: { type: [string, 'null'] }
+        reference_id: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+
+    TransactionDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/TransactionItemResponse'
+        - type: object
+          properties:
+            wallet_id: { type: string }
+
+    TransactionPageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TransactionItemResponse' }
+        page: { type: integer }
+        page_size: { type: integer }
+        total_items: { type: integer, format: int64 }
+        total_pages: { type: integer }
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string }
