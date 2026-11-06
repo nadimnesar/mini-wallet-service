@@ -10,6 +10,7 @@ Guidance for Claude Code when working in this repository.
 - `common` layout: `constant/AppConstants` (all constants), `util/` (PhoneNumberUtils, UuidGenerator), `exception/` with the base `MiniWalletException` and one subpackage per domain (`wallet`, `payment`, `transaction`, `idempotency`). Put new exceptions in the matching subpackage.
 - Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
+- Lombok (declared once in the root pom): `@RequiredArgsConstructor` for constructor injection, `@Slf4j` for loggers, `@Getter` for plain getters, `@NoArgsConstructor(access = AccessLevel.PRIVATE)` for constant/utility classes. Use records (not `@Data`/`@Value`) for DTOs and models. Keep a hand-written constructor only when it does more than assign fields.
 
 ## API spec (`docs/openapi.yaml`)
 
