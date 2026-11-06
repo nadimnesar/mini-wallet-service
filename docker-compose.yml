@@ -1,9 +1,11 @@
 name: mini-wallet
 
 # Bitnami images configure streaming replication from env vars alone.
-# Bitnami moved its free images to the "bitnamilegacy" namespace (frozen, no further updates).
+# Since Aug 2025 Bitnami's free tier publishes only the `latest` tag (kept up to date);
+# versioned tags require a subscription. A new PostgreSQL major in `latest` needs a
+# data reset in dev: `docker compose down -v`.
 x-postgres-common: &postgres-common
-  image: bitnamilegacy/postgresql:17.6.0-debian-12-r4
+  image: bitnami/postgresql:latest
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -U $${POSTGRESQL_USERNAME} -d $${POSTGRESQL_DATABASE}"]
     interval: 5s

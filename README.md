@@ -32,7 +32,7 @@ docker compose up
 
 #### Database topology (read/write split)
 
-`docker compose up` starts two PostgreSQL 17 nodes (`bitnamilegacy/postgresql`) with streaming replication, configured purely through environment variables:
+`docker compose up` starts two PostgreSQL nodes from the free `bitnami/postgresql:latest` image (currently PostgreSQL 18) with streaming replication, configured purely through environment variables:
 
 | Service | Role | Host port | Notes |
 |---------|------|-----------|-------|
@@ -42,7 +42,7 @@ docker compose up
 The `clients` module (`DataSourceConfig`) exposes one `DataSource` that routes on the transaction's read-only flag:
 `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary. Replication is asynchronous, so reads that must see a write that just happened (for example, a balance check before a debit) must run in a read-write transaction.
 Connection settings are under `miniwallet.datasource.write.*` / `miniwallet.datasource.read.*` in `application.properties`. You can override them with `DB_WRITE_URL`, `DB_READ_URL`, `DB_USERNAME` and `DB_PASSWORD`.
-If you recreate the primary's data, also reset the replica: `docker compose down -v`.
+If you recreate the primary's data, also reset the replica: `docker compose down -v`. Do the same when `latest` moves to a new PostgreSQL major version, because the old data files can't be opened by the new version.
 
 Alternatively, to build and run the executable module locally:
 ```bash
