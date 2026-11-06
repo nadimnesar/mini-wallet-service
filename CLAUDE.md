@@ -23,6 +23,16 @@ Guidance for Claude Code when working in this repository.
   - a gateway_ref credits only once
 - To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. A transfer writes both legs (`TRANSFER_OUT` + `TRANSFER_IN`) with the same `reference_id`. Never UPDATE or DELETE ledger rows.
 
+## Idempotent endpoints (add-money, transfers)
+
+- Follow `DefaultTransactionService.addMoney`. In ONE `TransactionTemplate` transaction: `idempotencyRepository.tryClaim` (blocks on a concurrent claim of the same key), do the work, then `completeWithResource` / `completeWithError`. If the key is already used, replay: different request hash → `IDEMPOTENCY_KEY_REUSED`, otherwise rebuild the response from the stored resource or re-raise the stored error (`ReplayedFailureException`).
+- Store only deterministic failures. Exceptions with `isRetryable() == true` (e.g. `PaymentGatewayException`) must propagate so the claim rolls back.
+- HTTP status is mapped from the error code in `GlobalExceptionHandler.STATUS_BY_ERROR_CODE`, so replayed errors keep their status. Add new error codes there.
+
+## Payment gateway mock
+
+- `PaymentGatewayClient` (clients) is implemented over HTTP by `HttpPaymentGatewayClient`, which forces HTTP/1.1 (WireMock resets h2c upgrades). Locally and in tests the gateway is WireMock with stubs in `docker/wiremock`. Scenarios are picked by a keyword in `gateway_ref` (see README). Extend those stubs instead of mocking the client in tests.
+
 ## Database schema (Liquibase)
 
 - Changelogs live in `repository/src/main/resources/db/changelog/`, one formatted-SQL file per table (`sql/00N-create-<table>-table.sql`).

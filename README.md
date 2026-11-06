@@ -75,11 +75,54 @@ To run a specific module's test suite:
 |--------|------|-------------|-----------------------|
 | `POST` | `/api/v1/wallets` | Create a new user wallet | No |
 | `GET`  | `/api/v1/wallets/{wallet_id}` | Retrieve wallet details and balance | No |
-| `POST` | `/api/v1/wallets/add-money` | Add money to a wallet (`wallet_id` in body) | **Yes** (`Idempotency-Key`) |
+| `POST` | `/api/v1/wallets/{wallet_id}/add-money` | Add money to a wallet after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
 | `POST` | `/api/v1/transfers` | P2P transfer between two wallets | **Yes** (`Idempotency-Key`) |
 | `GET`  | `/api/v1/transactions` | Query transactions across/by wallet (`?wallet_id=...`) | No |
 | `GET`  | `/api/v1/wallets/{wallet_id}/transactions` | Query paginated transaction history for a wallet | No |
 | `GET`  | `/api/v1/transactions/{transaction_id}` | Retrieve details of a specific transaction | No |
+
+### Add money
+
+```http
+POST /api/v1/wallets/{wallet_id}/add-money
+Idempotency-Key: <unique string, max 255 chars>
+
+{ "amount": 50000, "gateway_ref": "GW-20261105-9981", "payment_method": "VISA" }
+```
+
+`payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network. The response (201) is built from the ledger entry:
+
+```json
+{ "transaction_id": "…", "wallet_id": "…", "added_amount": 50000, "balance": 50000,
+  "gateway_ref": "GW-20261105-9981", "payment_method": "VISA", "created_at": "…" }
+```
+
+| Error | Status | When |
+|---|---|---|
+| `MISSING_IDEMPOTENCY_KEY` | 400 | No `Idempotency-Key` header |
+| `VALIDATION_ERROR` / `INVALID_PAYLOAD` | 400 | Amount outside 100–2,500,000 poisha, bad `gateway_ref`, unknown `payment_method` |
+| `PAYMENT_DECLINED` | 402 | Gateway reports the payment as declined or not yet captured |
+| `WALLET_NOT_FOUND` | 404 | Unknown wallet |
+| `DUPLICATE_GATEWAY_REF` | 409 | The `gateway_ref` already credited a wallet |
+| `IDEMPOTENCY_KEY_REUSED` | 422 | Same key, different request |
+| `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | 422 | Gateway doesn't know the payment / captured a different amount, currency or network |
+| `PAYMENT_GATEWAY_ERROR` | 502 | Gateway unreachable, timed out or failed. Not stored, so retry with the same key |
+
+### Mock payment gateway (WireMock)
+
+`docker compose up` also starts `payment-gateway` (WireMock, `localhost:8089`), loaded from `docker/wiremock`. The integration tests use the same stubs. The outcome is chosen by a keyword in `gateway_ref`:
+
+| `gateway_ref` contains | Gateway answer | API result |
+|---|---|---|
+| *(none of the below)* | Captured for the requested amount | 201 |
+| `DECLINED` | Declined: `INSUFFICIENT_FUNDS` | 402 `PAYMENT_DECLINED` |
+| `PENDING` | Pending 3-D Secure | 402 `PAYMENT_DECLINED` |
+| `NOTFOUND` | 404 | 422 `PAYMENT_NOT_FOUND` |
+| `MISMATCH` | Captured for 100 poisha | 422 `PAYMENT_MISMATCH` |
+| `ERROR` | 500 | 502 `PAYMENT_GATEWAY_ERROR` |
+| `TIMEOUT` | Answers after 10 s (app read timeout: 5 s) | 502 `PAYMENT_GATEWAY_ERROR` |
+
+Requests with a missing or wrong `X-Api-Key` (`visa-sandbox-key` / `mastercard-sandbox-key`) get 401.
 
 ---
 
@@ -94,3 +137,5 @@ To run a specific module's test suite:
    * Requests bearing the same `Idempotency-Key` and payload return the cached response without duplicate execution.
    * Requests reusing an `Idempotency-Key` with an altered payload return `422 Unprocessable Entity` (`IDEMPOTENCY_KEY_REUSED`).
    * Missing the `Idempotency-Key` header on required endpoints returns `400 Bad Request`.
+   * Claiming the key, doing the work and storing the outcome happen in one database transaction. A concurrent request with the same key waits for it and then replays the stored outcome, so there is exactly one execution.
+   * Deterministic failures (declined, not found, mismatch, duplicate `gateway_ref`) are stored and replayed. Transient gateway failures are not, so the client can retry with the same key.
