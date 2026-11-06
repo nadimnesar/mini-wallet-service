@@ -4,8 +4,8 @@ import com.pathaopay.miniwallet.common.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
-import com.pathaopay.miniwallet.common.constant.AppConstants.Ids;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
+import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.WalletResponse;
 import com.pathaopay.miniwallet.model.Currency;
@@ -30,7 +30,7 @@ public class DefaultWalletService implements WalletService {
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
         String phone = PhoneNumberUtils.normalize(request.phone());
-        return walletRepository.insertIfAbsent(newWalletId(), request.userId(), phone, Currency.BDT)
+        return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT)
                 .map(DefaultWalletService::toResponse)
                 .orElseThrow(() -> conflictFor(request.userId(), phone));
     }
@@ -46,21 +46,17 @@ public class DefaultWalletService implements WalletService {
         if (walletRepository.existsByPhone(phone)) {
             return new DuplicatePhoneException(ErrorMessages.DUPLICATE_PHONE_PREFIX + phone);
         }
-        // Only reachable on a generated wallet-id collision (random 128-bit UUID).
+        // Only reachable on a generated wallet-id collision (UUIDv7 has 74 random bits per millisecond).
         return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
     }
 
     /** Served by the read replica; the balance may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
-    public WalletResponse getWallet(String walletId) {
+    public WalletResponse getWallet(UUID walletId) {
         return walletRepository.findById(walletId)
                 .map(DefaultWalletService::toResponse)
                 .orElseThrow(() -> new WalletNotFoundException(walletId));
-    }
-
-    private static String newWalletId() {
-        return Ids.WALLET_PREFIX + UUID.randomUUID().toString().replace("-", "");
     }
 
     private static WalletResponse toResponse(Wallet wallet) {

@@ -3,10 +3,11 @@ package com.pathaopay.miniwallet.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.model.Currency;
 import java.time.Instant;
+import java.util.UUID;
 
 public record WalletResponse(
         @JsonProperty("wallet_id")
-        String walletId,
+        UUID walletId,
 
         @JsonProperty("user_id")
         String userId,

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class JdbcWalletRepository implements WalletRepository {
@@ -29,7 +30,7 @@ public class JdbcWalletRepository implements WalletRepository {
     private static final String EXISTS_BY_PHONE = "SELECT EXISTS (SELECT 1 FROM wallets WHERE phone = :phone)";
 
     private static final RowMapper<Wallet> WALLET_ROW_MAPPER = (rs, rowNum) -> new Wallet(
-            rs.getString("id"),
+            rs.getObject("id", UUID.class),
             rs.getString("user_id"),
             rs.getString("phone"),
             Currency.valueOf(rs.getString("currency")),
@@ -44,7 +45,7 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> insertIfAbsent(String walletId, String userId, String phone, Currency currency) {
+    public Optional<Wallet> insertIfAbsent(UUID walletId, String userId, String phone, Currency currency) {
         return jdbcClient.sql(INSERT_IF_ABSENT)
                 .param("id", walletId)
                 .param("userId", userId)
@@ -65,7 +66,7 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> findById(String walletId) {
+    public Optional<Wallet> findById(UUID walletId) {
         return jdbcClient.sql(FIND_BY_ID)
                 .param("id", walletId)
                 .query(WALLET_ROW_MAPPER)

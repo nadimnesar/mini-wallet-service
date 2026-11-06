@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping(path = "/api/v1/wallets")
 @Validated
@@ -29,7 +31,7 @@ public class WalletController {
     }
 
     @GetMapping("/{walletId}")
-    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") String walletId) {
+    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") UUID walletId) {
         WalletResponse response = walletService.getWallet(walletId);
         return ResponseEntity.ok(response);
     }

@@ -23,14 +23,6 @@ public final class AppConstants {
         }
     }
 
-    /** Prefixes for generated public identifiers. */
-    public static final class Ids {
-        public static final String WALLET_PREFIX = "w_";
-
-        private Ids() {
-        }
-    }
-
     /** Bangladeshi mobile number formats. */
     public static final class Phone {
         /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */

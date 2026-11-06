@@ -22,6 +22,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -69,7 +70,8 @@ class WalletServiceIntegrationTest {
     void createsZeroBalanceBdtWalletAndStoresNormalizedPhone() {
         WalletResponse response = walletService.createWallet(new CreateWalletRequest("u_1001", "+8801711000001"));
 
-        assertTrue(response.walletId().matches("^w_[0-9a-f]{32}$"));
+        assertEquals(7, response.walletId().version());
+        assertEquals(2, response.walletId().variant());
         assertEquals("u_1001", response.userId());
         assertEquals(Currency.BDT, response.currency());
         assertEquals(0, response.balance());
@@ -121,7 +123,7 @@ class WalletServiceIntegrationTest {
 
     @Test
     void throwsWhenWalletMissing() {
-        assertThrows(WalletNotFoundException.class, () -> walletService.getWallet("w_missing"));
+        assertThrows(WalletNotFoundException.class, () -> walletService.getWallet(UUID.randomUUID()));
     }
 
     @Test
@@ -194,7 +196,7 @@ class WalletServiceIntegrationTest {
                 .update());
     }
 
-    private String storedPhone(String walletId) {
+    private String storedPhone(UUID walletId) {
         return jdbcClient.sql("SELECT phone FROM wallets WHERE id = :id")
                 .param("id", walletId)
                 .query(String.class)

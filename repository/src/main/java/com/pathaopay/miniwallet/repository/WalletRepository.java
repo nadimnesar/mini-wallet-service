@@ -4,6 +4,7 @@ import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface WalletRepository {
 
@@ -13,11 +14,11 @@ public interface WalletRepository {
      *
      * @return the created wallet, or empty if the user or the phone already has a wallet
      */
-    Optional<Wallet> insertIfAbsent(String walletId, String userId, String phone, Currency currency);
+    Optional<Wallet> insertIfAbsent(UUID walletId, String userId, String phone, Currency currency);
 
     boolean existsByUserId(String userId);
 
     boolean existsByPhone(String phone);
 
-    Optional<Wallet> findById(String walletId);
+    Optional<Wallet> findById(UUID walletId);
 }
