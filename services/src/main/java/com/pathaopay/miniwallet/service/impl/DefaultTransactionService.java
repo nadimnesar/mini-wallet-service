@@ -2,8 +2,8 @@ package com.pathaopay.miniwallet.service.impl;
 
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
 import com.pathaopay.miniwallet.client.PaymentVerification;
-import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
-import com.pathaopay.miniwallet.common.constant.AppConstants.Money;
+import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 import com.pathaopay.miniwallet.common.exception.idempotency.IdempotencyKeyReusedException;
 import com.pathaopay.miniwallet.common.exception.idempotency.ReplayedFailureException;
@@ -108,13 +108,13 @@ public class DefaultTransactionService implements TransactionService {
 
     private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request) {
         if (payment.status() != PaymentVerification.Status.CAPTURED) {
-            throw new PaymentDeclinedException(ErrorMessages.PAYMENT_DECLINED.formatted(
+            throw new PaymentDeclinedException(ErrorMessage.PAYMENT_DECLINED.formatted(
                     request.paymentMethod(), request.gatewayRef(), payment.status(), payment.declineReason()));
         }
-        String requested = describe(request.amount(), Money.CURRENCY_CODE, request.paymentMethod().name());
+        String requested = describe(request.amount(), AppConstants.CURRENCY_CODE, request.paymentMethod().name());
         String confirmed = describe(payment.amount(), payment.currency(), String.valueOf(payment.cardNetwork()));
         if (!requested.equals(confirmed) || !request.gatewayRef().equals(payment.gatewayRef())) {
-            throw new PaymentMismatchException(ErrorMessages.PAYMENT_MISMATCH.formatted(
+            throw new PaymentMismatchException(ErrorMessage.PAYMENT_MISMATCH.formatted(
                     request.gatewayRef(), requested, confirmed));
         }
     }
@@ -127,7 +127,7 @@ public class DefaultTransactionService implements TransactionService {
         IdempotencyRecord record = idempotencyRepository.findByKey(idempotencyKey)
                 .orElseThrow(() -> new IllegalStateException("Claimed idempotency key vanished: " + idempotencyKey));
         if (!record.requestHash().equals(requestHash)) {
-            throw new IdempotencyKeyReusedException(ErrorMessages.IDEMPOTENCY_KEY_REUSED);
+            throw new IdempotencyKeyReusedException(ErrorMessage.IDEMPOTENCY_KEY_REUSED);
         }
         if (record.resourceId() != null) {
             WalletTransaction entry = transactionRepository.findById(record.resourceId())
@@ -138,7 +138,7 @@ public class DefaultTransactionService implements TransactionService {
     }
 
     private static DuplicateGatewayRefException duplicateGatewayRef(UUID gatewayRef) {
-        return new DuplicateGatewayRefException(ErrorMessages.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
+        return new DuplicateGatewayRefException(ErrorMessage.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
     }
 
     private static AddMoneyResponse toAddMoneyResponse(WalletTransaction entry) {

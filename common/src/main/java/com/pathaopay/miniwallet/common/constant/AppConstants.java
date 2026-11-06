@@ -3,159 +3,66 @@ package com.pathaopay.miniwallet.common.constant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+/** Application-wide constants: HTTP headers, money rules, phone formats and request validation. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AppConstants {
 
-    /** HTTP header names. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class Headers {
-        public static final String IDEMPOTENCY_KEY = "Idempotency-Key";
-    }
+    // ---- HTTP headers
+    public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
-    /** Money rules. All amounts are integer poisha (1 BDT = 100 poisha). */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class Money {
-        public static final long POISHA_PER_BDT = 100;
-        public static final long MIN_AMOUNT_POISHA = 100;
-        public static final long MAX_AMOUNT_POISHA = 2_500_000;
-        /** ISO 4217 code of the only supported currency. */
-        public static final String CURRENCY_CODE = "BDT";
-    }
+    // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
+    public static final long POISHA_PER_BDT = 100;
+    public static final long MIN_AMOUNT_POISHA = 100;
+    public static final long MAX_AMOUNT_POISHA = 2_500_000;
+    /** ISO 4217 code of the only supported currency. */
+    public static final String CURRENCY_CODE = "BDT";
 
-    /** Bangladeshi mobile number formats. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class Phone {
-        /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */
-        public static final String LOCAL_PREFIX = "0";
-        /**
-         * Accepted input: 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX.
-         * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
-         */
-        public static final String ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
-    }
+    // ---- Bangladeshi mobile number formats
+    /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */
+    public static final String PHONE_LOCAL_PREFIX = "0";
+    /**
+     * Accepted input: 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX.
+     * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
+     */
+    public static final String PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
 
-    /** Request validation limits, patterns and messages. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class Validation {
-        public static final int ID_MIN_LENGTH = 1;
-        public static final int ID_MAX_LENGTH = 64;
-        public static final int NOTE_MAX_LENGTH = 255;
+    // ---- Request validation limits, patterns and messages
+    public static final int ID_MIN_LENGTH = 1;
+    public static final int ID_MAX_LENGTH = 64;
+    public static final int NOTE_MAX_LENGTH = 255;
 
-        public static final String ID_PATTERN = "^[a-zA-Z0-9_.-]+$";
+    public static final String ID_PATTERN = "^[a-zA-Z0-9_.-]+$";
 
-        private static final String ID_CHARS = " must contain only alphanumeric characters, underscores, dashes, or dots";
-        private static final String ID_LENGTH = " must be between " + ID_MIN_LENGTH + " and " + ID_MAX_LENGTH + " characters";
+    private static final String ID_CHARS = " must contain only alphanumeric characters, underscores, dashes, or dots";
+    private static final String ID_LENGTH = " must be between " + ID_MIN_LENGTH + " and " + ID_MAX_LENGTH + " characters";
 
-        public static final String USER_ID_REQUIRED = "user_id is required";
+    public static final String USER_ID_REQUIRED = "user_id is required";
 
-        public static final String PHONE_REQUIRED = "phone is required";
-        public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
-                + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
+    public static final String PHONE_REQUIRED = "phone is required";
+    public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
+            + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
 
-        public static final String WALLET_ID_REQUIRED = "wallet_id is required";
-        public static final String WALLET_ID_SIZE = "wallet_id" + ID_LENGTH;
-        public static final String WALLET_ID_PATTERN = "wallet_id" + ID_CHARS;
+    public static final String WALLET_ID_REQUIRED = "wallet_id is required";
+    public static final String WALLET_ID_SIZE = "wallet_id" + ID_LENGTH;
+    public static final String WALLET_ID_PATTERN = "wallet_id" + ID_CHARS;
 
-        public static final String FROM_WALLET_ID_REQUIRED = "from_wallet_id is required";
-        public static final String FROM_WALLET_ID_SIZE = "from_wallet_id" + ID_LENGTH;
-        public static final String FROM_WALLET_ID_PATTERN = "from_wallet_id" + ID_CHARS;
+    public static final String FROM_WALLET_ID_REQUIRED = "from_wallet_id is required";
+    public static final String FROM_WALLET_ID_SIZE = "from_wallet_id" + ID_LENGTH;
+    public static final String FROM_WALLET_ID_PATTERN = "from_wallet_id" + ID_CHARS;
 
-        public static final String TO_WALLET_ID_REQUIRED = "to_wallet_id is required";
-        public static final String TO_WALLET_ID_SIZE = "to_wallet_id" + ID_LENGTH;
-        public static final String TO_WALLET_ID_PATTERN = "to_wallet_id" + ID_CHARS;
+    public static final String TO_WALLET_ID_REQUIRED = "to_wallet_id is required";
+    public static final String TO_WALLET_ID_SIZE = "to_wallet_id" + ID_LENGTH;
+    public static final String TO_WALLET_ID_PATTERN = "to_wallet_id" + ID_CHARS;
 
-        public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
+    public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
 
-        public static final String AMOUNT_REQUIRED = "amount is required";
-        public static final String AMOUNT_MIN = "amount must be at least " + Money.MIN_AMOUNT_POISHA
-                + " poisha (" + Money.MIN_AMOUNT_POISHA / Money.POISHA_PER_BDT + " BDT)";
-        public static final String AMOUNT_MAX = "amount must be at most " + Money.MAX_AMOUNT_POISHA
-                + " poisha (" + Money.MAX_AMOUNT_POISHA / Money.POISHA_PER_BDT + " BDT)";
+    public static final String AMOUNT_REQUIRED = "amount is required";
+    public static final String AMOUNT_MIN = "amount must be at least " + MIN_AMOUNT_POISHA
+            + " poisha (" + MIN_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
+    public static final String AMOUNT_MAX = "amount must be at most " + MAX_AMOUNT_POISHA
+            + " poisha (" + MAX_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
 
-        public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
+    public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
 
-        public static final String NOTE_SIZE = "note must not exceed " + NOTE_MAX_LENGTH + " characters";
-    }
-
-    /** Machine-readable error codes returned in {@code error.code}. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class ErrorCodes {
-        public static final String VALIDATION_ERROR = "VALIDATION_ERROR";
-        public static final String MISSING_IDEMPOTENCY_KEY = "MISSING_IDEMPOTENCY_KEY";
-        public static final String MISSING_HEADER = "MISSING_HEADER";
-        public static final String INVALID_PAYLOAD = "INVALID_PAYLOAD";
-        public static final String INVALID_ARGUMENT = "INVALID_ARGUMENT";
-        public static final String INVALID_AMOUNT = "INVALID_AMOUNT";
-        public static final String INVALID_PHONE_NUMBER = "INVALID_PHONE_NUMBER";
-        public static final String WALLET_NOT_FOUND = "WALLET_NOT_FOUND";
-        public static final String TRANSACTION_NOT_FOUND = "TRANSACTION_NOT_FOUND";
-        public static final String DUPLICATE_WALLET = "DUPLICATE_WALLET";
-        public static final String DUPLICATE_PHONE = "DUPLICATE_PHONE";
-        public static final String DUPLICATE_GATEWAY_REF = "DUPLICATE_GATEWAY_REF";
-        public static final String PAYMENT_DECLINED = "PAYMENT_DECLINED";
-        public static final String PAYMENT_NOT_FOUND = "PAYMENT_NOT_FOUND";
-        public static final String PAYMENT_MISMATCH = "PAYMENT_MISMATCH";
-        public static final String PAYMENT_GATEWAY_ERROR = "PAYMENT_GATEWAY_ERROR";
-        public static final String INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE";
-        public static final String SAME_WALLET_TRANSFER = "SAME_WALLET_TRANSFER";
-        public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
-        public static final String NOT_FOUND = "NOT_FOUND";
-        public static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
-        public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
-    }
-
-    /** Human-readable error messages returned in {@code error.message}. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class ErrorMessages {
-        public static final String VALIDATION_FAILED = "Validation failed";
-        public static final String INVALID_PARAMETER_OR_HEADER = "Invalid parameter or header value";
-        public static final String CONSTRAINT_VIOLATION = "Constraint violation";
-        public static final String IDEMPOTENCY_KEY_REQUIRED = Headers.IDEMPOTENCY_KEY + " header is required";
-        /** Format with the header name. */
-        public static final String MISSING_HEADER = "Required header '%s' is missing";
-        public static final String MALFORMED_JSON = "Malformed or unreadable JSON request body";
-        /** Format with the JSON field path, e.g. user_id. */
-        public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
-        public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
-        public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
-        public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
-        public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
-        public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
-        public static final String DUPLICATE_GATEWAY_REF_PREFIX = "This gateway_ref has already been used: ";
-        public static final String IDEMPOTENCY_KEY_REUSED =
-                Headers.IDEMPOTENCY_KEY + " has already been used with a different request";
-        /** Format with network, gateway_ref, status and decline reason. */
-        public static final String PAYMENT_DECLINED = "%s payment %s was not captured (status: %s, reason: %s)";
-        /** Format with network and gateway_ref. */
-        public static final String PAYMENT_NOT_FOUND = "%s gateway has no payment with gateway_ref %s";
-        /** Format with gateway_ref, requested and confirmed details. */
-        public static final String PAYMENT_MISMATCH = "Gateway confirmation for %s does not match the request "
-                + "(requested %s, confirmed %s)";
-        /** Format with network. */
-        public static final String PAYMENT_GATEWAY_ERROR = "%s payment gateway is unavailable. Please retry later.";
-        public static final String RESOURCE_NOT_FOUND = "Resource not found";
-        public static final String INVALID_PHONE_NUMBER = Validation.PHONE_FORMAT;
-        /** Format with the HTTP method. */
-        public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
-        public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
-        public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
-    }
-
-    /** Mock-able external payment gateway (one HTTP API per card network). */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class PaymentGateway {
-        public static final String PROPERTIES_PREFIX = "miniwallet.payment-gateway";
-        public static final String API_KEY_HEADER = "X-Api-Key";
-        /** Format with the lower-case network name, e.g. visa. */
-        public static final String VERIFY_PATH = "/%s/v1/payments/verify";
-    }
-
-    /** Read/write datasource property prefixes and bean names. */
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public static final class Database {
-        public static final String WRITE_PROPERTIES_PREFIX = "miniwallet.datasource.write";
-        public static final String READ_PROPERTIES_PREFIX = "miniwallet.datasource.read";
-        public static final String WRITE_BEAN = "writeDataSource";
-        public static final String READ_BEAN = "readDataSource";
-    }
+    public static final String NOTE_SIZE = "note must not exceed " + NOTE_MAX_LENGTH + " characters";
 }

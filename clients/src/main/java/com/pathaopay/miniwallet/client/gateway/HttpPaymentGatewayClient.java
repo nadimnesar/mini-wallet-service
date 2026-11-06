@@ -3,9 +3,9 @@ package com.pathaopay.miniwallet.client.gateway;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
 import com.pathaopay.miniwallet.client.PaymentVerification;
-import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
-import com.pathaopay.miniwallet.common.constant.AppConstants.Money;
-import com.pathaopay.miniwallet.common.constant.AppConstants.PaymentGateway;
+import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
+import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
 import com.pathaopay.miniwallet.model.PaymentMethod;
@@ -53,22 +53,22 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
         VerifyResponse response;
         try {
             response = restClient.post()
-                    .uri(PaymentGateway.VERIFY_PATH.formatted(network))
-                    .header(PaymentGateway.API_KEY_HEADER, properties.network(method).apiKey())
+                    .uri(PaymentGatewayConstants.VERIFY_PATH.formatted(network))
+                    .header(PaymentGatewayConstants.API_KEY_HEADER, properties.network(method).apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(new VerifyRequest(gatewayRef, amount, Money.CURRENCY_CODE))
+                    .body(new VerifyRequest(gatewayRef, amount, AppConstants.CURRENCY_CODE))
                     .retrieve()
                     .onStatus(status -> status.isSameCodeAs(HttpStatus.NOT_FOUND), (request, res) -> {
-                        throw new PaymentNotFoundException(ErrorMessages.PAYMENT_NOT_FOUND.formatted(method, gatewayRef));
+                        throw new PaymentNotFoundException(ErrorMessage.PAYMENT_NOT_FOUND.formatted(method, gatewayRef));
                     })
                     .body(VerifyResponse.class);
         } catch (RestClientException e) {
             // Non-2xx (other than 404), timeouts, connection failures and unreadable bodies.
-            throw new PaymentGatewayException(ErrorMessages.PAYMENT_GATEWAY_ERROR.formatted(method), e);
+            throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), e);
         }
         if (response == null || response.status() == null || response.amount() == null) {
-            throw new PaymentGatewayException(ErrorMessages.PAYMENT_GATEWAY_ERROR.formatted(method), null);
+            throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), null);
         }
         return new PaymentVerification(response.gatewayRef(), response.status(), response.amount(),
                 response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason());

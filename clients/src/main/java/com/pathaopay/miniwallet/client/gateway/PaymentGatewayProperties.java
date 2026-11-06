@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.client.gateway;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants.PaymentGateway;
+import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -8,7 +8,7 @@ import java.net.URI;
 import java.time.Duration;
 
 /** {@code miniwallet.payment-gateway.*}: where the gateway lives and each network's credentials. */
-@ConfigurationProperties(PaymentGateway.PROPERTIES_PREFIX)
+@ConfigurationProperties(PaymentGatewayConstants.PROPERTIES_PREFIX)
 public record PaymentGatewayProperties(
         URI baseUrl,
         Duration connectTimeout,

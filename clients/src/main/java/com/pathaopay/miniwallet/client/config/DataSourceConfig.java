@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.client.config;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants.Database;
+import com.pathaopay.miniwallet.common.constant.DbConstants;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -25,22 +25,22 @@ import javax.sql.DataSource;
 @Configuration(proxyBeanMethods = false)
 public class DataSourceConfig {
 
-    @Bean(name = Database.WRITE_BEAN, destroyMethod = "close")
-    @ConfigurationProperties(Database.WRITE_PROPERTIES_PREFIX)
+    @Bean(name = DbConstants.WRITE_BEAN, destroyMethod = "close")
+    @ConfigurationProperties(DbConstants.WRITE_PROPERTIES_PREFIX)
     public HikariDataSource writeDataSource() {
         return new HikariDataSource();
     }
 
-    @Bean(name = Database.READ_BEAN, destroyMethod = "close")
-    @ConfigurationProperties(Database.READ_PROPERTIES_PREFIX)
+    @Bean(name = DbConstants.READ_BEAN, destroyMethod = "close")
+    @ConfigurationProperties(DbConstants.READ_PROPERTIES_PREFIX)
     public HikariDataSource readDataSource() {
         return new HikariDataSource();
     }
 
     @Bean
     @Primary
-    public DataSource dataSource(@Qualifier(Database.WRITE_BEAN) DataSource writeDataSource,
-                                 @Qualifier(Database.READ_BEAN) DataSource readDataSource) {
+    public DataSource dataSource(@Qualifier(DbConstants.WRITE_BEAN) DataSource writeDataSource,
+                                 @Qualifier(DbConstants.READ_BEAN) DataSource readDataSource) {
         LazyConnectionDataSourceProxy routing = new LazyConnectionDataSourceProxy(writeDataSource);
         routing.setReadOnlyDataSource(readDataSource);
         return routing;

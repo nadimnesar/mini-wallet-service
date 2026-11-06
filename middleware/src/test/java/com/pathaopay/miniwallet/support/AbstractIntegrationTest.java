@@ -1,7 +1,10 @@
 package com.pathaopay.miniwallet.support;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants.Database;
-import com.pathaopay.miniwallet.common.constant.AppConstants.PaymentGateway;
+import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
+import com.pathaopay.miniwallet.common.constant.DbConstants;
+import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -47,14 +50,14 @@ public abstract class AbstractIntegrationTest {
 
     @DynamicPropertySource
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
-        for (String prefix : List.of(Database.WRITE_PROPERTIES_PREFIX, Database.READ_PROPERTIES_PREFIX)) {
+        for (String prefix : List.of(DbConstants.WRITE_PROPERTIES_PREFIX, DbConstants.READ_PROPERTIES_PREFIX)) {
             registry.add(prefix + ".jdbc-url", POSTGRES::getJdbcUrl);
             registry.add(prefix + ".username", POSTGRES::getUsername);
             registry.add(prefix + ".password", POSTGRES::getPassword);
         }
-        registry.add(PaymentGateway.PROPERTIES_PREFIX + ".base-url", AbstractIntegrationTest::paymentGatewayUrl);
+        registry.add(PaymentGatewayConstants.PROPERTIES_PREFIX + ".base-url", AbstractIntegrationTest::paymentGatewayUrl);
         // The TIMEOUT stub answers after 10s; a short read timeout keeps that test fast.
-        registry.add(PaymentGateway.PROPERTIES_PREFIX + ".read-timeout", () -> "1s");
+        registry.add(PaymentGatewayConstants.PROPERTIES_PREFIX + ".read-timeout", () -> "1s");
     }
 
     @Autowired
@@ -62,7 +65,7 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void resetInfrastructure() {
-        jdbcClient.sql("TRUNCATE TABLE idempotency_keys, wallet_transactions, wallets").update();
+        jdbcClient.sql("TRUNCATE TABLE " + String.join(", ", IdempotencyKeys.TABLE, WalletTransactions.TABLE, Wallets.TABLE)).update();
         RestClient.create(paymentGatewayUrl()).delete().uri("/__admin/requests").retrieve().toBodilessEntity();
     }
 

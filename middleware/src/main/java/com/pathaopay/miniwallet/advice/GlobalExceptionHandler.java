@@ -1,8 +1,8 @@
 package com.pathaopay.miniwallet.advice;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
-import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
-import com.pathaopay.miniwallet.common.constant.AppConstants.Headers;
+import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
+import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 import com.pathaopay.miniwallet.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -28,35 +28,35 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
-            Map.entry(ErrorCodes.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
-            Map.entry(ErrorCodes.INVALID_PHONE_NUMBER, HttpStatus.BAD_REQUEST),
-            Map.entry(ErrorCodes.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
-            Map.entry(ErrorCodes.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
-            Map.entry(ErrorCodes.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),
-            Map.entry(ErrorCodes.DUPLICATE_WALLET, HttpStatus.CONFLICT),
-            Map.entry(ErrorCodes.DUPLICATE_PHONE, HttpStatus.CONFLICT),
-            Map.entry(ErrorCodes.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),
-            Map.entry(ErrorCodes.INSUFFICIENT_BALANCE, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCodes.SAME_WALLET_TRANSFER, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCodes.IDEMPOTENCY_KEY_REUSED, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCodes.PAYMENT_NOT_FOUND, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCodes.PAYMENT_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCodes.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY));
+            Map.entry(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.INVALID_PHONE_NUMBER, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
+            Map.entry(ErrorCode.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.DUPLICATE_WALLET, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.INSUFFICIENT_BALANCE, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.SAME_WALLET_TRANSFER, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.IDEMPOTENCY_KEY_REUSED, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.PAYMENT_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY));
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         String detailMessage = ex.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .findFirst()
-                .orElse(ErrorMessages.VALIDATION_FAILED);
+                .orElse(ErrorMessage.VALIDATION_FAILED);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, detailMessage));
+                .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR, detailMessage));
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ErrorResponse> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, ErrorMessages.INVALID_PARAMETER_OR_HEADER));
+                .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR, ErrorMessage.INVALID_PARAMETER_OR_HEADER));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -64,19 +64,19 @@ public class GlobalExceptionHandler {
         String detailMessage = ex.getConstraintViolations().stream()
                 .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
                 .findFirst()
-                .orElse(ErrorMessages.CONSTRAINT_VIOLATION);
+                .orElse(ErrorMessage.CONSTRAINT_VIOLATION);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.VALIDATION_ERROR, detailMessage));
+                .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR, detailMessage));
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeader(MissingRequestHeaderException ex) {
-        if (Headers.IDEMPOTENCY_KEY.equalsIgnoreCase(ex.getHeaderName())) {
+        if (AppConstants.IDEMPOTENCY_KEY_HEADER.equalsIgnoreCase(ex.getHeaderName())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ErrorResponse.of(ErrorCodes.MISSING_IDEMPOTENCY_KEY, ErrorMessages.IDEMPOTENCY_KEY_REQUIRED));
+                    .body(ErrorResponse.of(ErrorCode.MISSING_IDEMPOTENCY_KEY, ErrorMessage.IDEMPOTENCY_KEY_REQUIRED));
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.MISSING_HEADER, ErrorMessages.MISSING_HEADER.formatted(ex.getHeaderName())));
+                .body(ErrorResponse.of(ErrorCode.MISSING_HEADER, ErrorMessage.MISSING_HEADER.formatted(ex.getHeaderName())));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -84,10 +84,10 @@ public class GlobalExceptionHandler {
         // A value Jackson cannot convert (e.g. a non-UUID user_id or an unknown payment_method) names its field.
         String message = ex.getMostSpecificCause() instanceof MismatchedInputException mismatch
                 && !mismatch.getPath().isEmpty()
-                ? ErrorMessages.INVALID_FIELD_VALUE.formatted(fieldPath(mismatch))
-                : ErrorMessages.MALFORMED_JSON;
+                ? ErrorMessage.INVALID_FIELD_VALUE.formatted(fieldPath(mismatch))
+                : ErrorMessage.MALFORMED_JSON;
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.INVALID_PAYLOAD, message));
+                .body(ErrorResponse.of(ErrorCode.INVALID_PAYLOAD, message));
     }
 
     private static String fieldPath(MismatchedInputException ex) {
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.INVALID_ARGUMENT, ErrorMessages.INVALID_ARGUMENT_PREFIX + ex.getName()));
+                .body(ErrorResponse.of(ErrorCode.INVALID_ARGUMENT, ErrorMessage.INVALID_ARGUMENT_PREFIX + ex.getName()));
     }
 
     /**
@@ -118,19 +118,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(ErrorCodes.NOT_FOUND, ErrorMessages.RESOURCE_NOT_FOUND));
+                .body(ErrorResponse.of(ErrorCode.NOT_FOUND, ErrorMessage.RESOURCE_NOT_FOUND));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(ErrorResponse.of(ErrorCodes.METHOD_NOT_ALLOWED, ErrorMessages.METHOD_NOT_SUPPORTED.formatted(ex.getMethod())));
+                .body(ErrorResponse.of(ErrorCode.METHOD_NOT_ALLOWED, ErrorMessage.METHOD_NOT_SUPPORTED.formatted(ex.getMethod())));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        log.error(ErrorMessages.UNHANDLED_EXCEPTION_LOG, ex);
+        log.error(ErrorMessage.UNHANDLED_EXCEPTION_LOG, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of(ErrorCodes.INTERNAL_SERVER_ERROR, ErrorMessages.UNEXPECTED_ERROR));
+                .body(ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR, ErrorMessage.UNEXPECTED_ERROR));
     }
 }

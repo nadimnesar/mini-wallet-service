@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.service.impl;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
+import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
@@ -39,10 +39,10 @@ public class DefaultWalletService implements WalletService {
      */
     private RuntimeException conflictFor(UUID userId, String phone) {
         if (walletRepository.existsByUserId(userId)) {
-            return new DuplicateWalletException(ErrorMessages.DUPLICATE_WALLET_PREFIX + userId);
+            return new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + userId);
         }
         if (walletRepository.existsByPhone(phone)) {
-            return new DuplicatePhoneException(ErrorMessages.DUPLICATE_PHONE_PREFIX + phone);
+            return new DuplicatePhoneException(ErrorMessage.DUPLICATE_PHONE_PREFIX + phone);
         }
         // Only reachable on a generated wallet-id collision (UUIDv7 has 74 random bits per millisecond).
         return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
