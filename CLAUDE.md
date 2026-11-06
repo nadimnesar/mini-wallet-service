@@ -10,6 +10,12 @@ Guidance for Claude Code when working in this repository.
 - Read/write routing lives in `repository` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 
+## Database schema (Liquibase)
+
+- Changelogs live in `repository/src/main/resources/db/changelog/`, one formatted-SQL file per table (`sql/00N-create-<table>-table.sql`).
+- **Pre-release: no backward-compatible migrations.** All data is test data. To change the schema, edit the table's existing changeset in place to show the final shape. Don't add `ALTER`/data-migration changesets.
+- After editing an applied changeset, reset local data: `docker compose down -v`. Liquibase refuses to start on a checksum mismatch. Testcontainers tests always start from an empty database.
+
 ## Committing
 
 Only commit when the user asks. Never commit to `master` without the user's go-ahead. Never force-push or rewrite pushed history.
