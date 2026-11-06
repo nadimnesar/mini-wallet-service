@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 import com.pathaopay.miniwallet.model.TransactionType;
 import com.pathaopay.miniwallet.model.WalletTransaction;
@@ -18,45 +19,56 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JdbcTransactionRepository implements TransactionRepository {
 
-    private static final String COLUMNS = """
-            id, wallet_id, entry_no, type, amount, balance_before, balance_after,
-            counterparty_wallet_id, reference_id, payment_method, created_at""";
+    private static final String ADD_MONEY = "'" + TransactionType.ADD_MONEY.name() + "'";
 
-    private static final String FIND_LATEST = """
-            SELECT %s FROM wallet_transactions
-            WHERE wallet_id = :walletId
-            ORDER BY entry_no DESC
-            LIMIT 1
-            """.formatted(COLUMNS);
+    private static final String COLUMNS = String.join(", ",
+            WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO, WalletTransactions.TYPE,
+            WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE, WalletTransactions.BALANCE_AFTER,
+            WalletTransactions.COUNTERPARTY_WALLET_ID, WalletTransactions.REFERENCE_ID,
+            WalletTransactions.PAYMENT_METHOD, WalletTransactions.CREATED_AT);
 
-    private static final String EXISTS_ADD_MONEY_WITH_GATEWAY_REF = """
-            SELECT EXISTS (SELECT 1 FROM wallet_transactions WHERE type = 'ADD_MONEY' AND reference_id = :ref)""";
+    private static final String FIND_LATEST =
+            "SELECT " + COLUMNS
+                    + " FROM " + WalletTransactions.TABLE
+                    + " WHERE " + WalletTransactions.WALLET_ID + " = :walletId"
+                    + " ORDER BY " + WalletTransactions.ENTRY_NO + " DESC"
+                    + " LIMIT 1";
+
+    private static final String EXISTS_ADD_MONEY_WITH_GATEWAY_REF =
+            "SELECT EXISTS (SELECT 1 FROM " + WalletTransactions.TABLE
+                    + " WHERE " + WalletTransactions.TYPE + " = " + ADD_MONEY
+                    + " AND " + WalletTransactions.REFERENCE_ID + " = :ref)";
 
     // The conflict target is the partial unique index on gateway_ref, so a concurrent request that
     // already credited the same gateway_ref makes this insert a no-op instead of aborting the transaction.
-    private static final String APPEND_ADD_MONEY = """
-            INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before, balance_after,
-                                             reference_id, payment_method)
-            VALUES (:id, :walletId, :entryNo, 'ADD_MONEY', :amount, :balanceBefore, :balanceAfter,
-                    :referenceId, :paymentMethod)
-            ON CONFLICT (reference_id) WHERE type = 'ADD_MONEY' DO NOTHING
-            RETURNING %s
-            """.formatted(COLUMNS);
+    private static final String APPEND_ADD_MONEY =
+            "INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
+                    WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
+                    WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
+                    WalletTransactions.BALANCE_AFTER, WalletTransactions.REFERENCE_ID,
+                    WalletTransactions.PAYMENT_METHOD) + ")"
+                    + " VALUES (:id, :walletId, :entryNo, " + ADD_MONEY + ", :amount, :balanceBefore, :balanceAfter,"
+                    + " :referenceId, :paymentMethod)"
+                    + " ON CONFLICT (" + WalletTransactions.REFERENCE_ID + ")"
+                    + " WHERE " + WalletTransactions.TYPE + " = " + ADD_MONEY + " DO NOTHING"
+                    + " RETURNING " + COLUMNS;
 
-    private static final String FIND_BY_ID = "SELECT %s FROM wallet_transactions WHERE id = :id".formatted(COLUMNS);
+    private static final String FIND_BY_ID =
+            "SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE + " WHERE " + WalletTransactions.ID + " = :id";
 
     private static final RowMapper<WalletTransaction> ROW_MAPPER = (rs, rowNum) -> new WalletTransaction(
-            rs.getObject("id", UUID.class),
-            rs.getObject("wallet_id", UUID.class),
-            rs.getLong("entry_no"),
-            TransactionType.valueOf(rs.getString("type")),
-            rs.getLong("amount"),
-            rs.getLong("balance_before"),
-            rs.getLong("balance_after"),
-            rs.getObject("counterparty_wallet_id", UUID.class),
-            rs.getObject("reference_id", UUID.class),
-            rs.getString("payment_method") == null ? null : PaymentMethod.valueOf(rs.getString("payment_method")),
-            rs.getObject("created_at", OffsetDateTime.class).toInstant());
+            rs.getObject(WalletTransactions.ID, UUID.class),
+            rs.getObject(WalletTransactions.WALLET_ID, UUID.class),
+            rs.getLong(WalletTransactions.ENTRY_NO),
+            TransactionType.valueOf(rs.getString(WalletTransactions.TYPE)),
+            rs.getLong(WalletTransactions.AMOUNT),
+            rs.getLong(WalletTransactions.BALANCE_BEFORE),
+            rs.getLong(WalletTransactions.BALANCE_AFTER),
+            rs.getObject(WalletTransactions.COUNTERPARTY_WALLET_ID, UUID.class),
+            rs.getObject(WalletTransactions.REFERENCE_ID, UUID.class),
+            rs.getString(WalletTransactions.PAYMENT_METHOD) == null
+                    ? null : PaymentMethod.valueOf(rs.getString(WalletTransactions.PAYMENT_METHOD)),
+            rs.getObject(WalletTransactions.CREATED_AT, OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
 

@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,34 +17,39 @@ public class JdbcIdempotencyRepository implements IdempotencyRepository {
 
     // If another transaction holds an uncommitted row for this key, PostgreSQL makes this INSERT wait
     // for it: after a commit it does nothing (key used), after a rollback it inserts (key claimed).
-    private static final String TRY_CLAIM = """
-            INSERT INTO idempotency_keys (idempotency_key, operation, request_hash)
-            VALUES (:key, :operation, :requestHash)
-            ON CONFLICT (idempotency_key) DO NOTHING
-            """;
+    private static final String TRY_CLAIM =
+            "INSERT INTO " + IdempotencyKeys.TABLE + " (" + String.join(", ",
+                    IdempotencyKeys.IDEMPOTENCY_KEY, IdempotencyKeys.OPERATION, IdempotencyKeys.REQUEST_HASH) + ")"
+                    + " VALUES (:key, :operation, :requestHash)"
+                    + " ON CONFLICT (" + IdempotencyKeys.IDEMPOTENCY_KEY + ") DO NOTHING";
 
-    private static final String FIND_BY_KEY = """
-            SELECT idempotency_key, operation, request_hash, resource_id, error_code, error_message
-            FROM idempotency_keys WHERE idempotency_key = :key
-            """;
+    private static final String FIND_BY_KEY =
+            "SELECT " + String.join(", ",
+                    IdempotencyKeys.IDEMPOTENCY_KEY, IdempotencyKeys.OPERATION, IdempotencyKeys.REQUEST_HASH,
+                    IdempotencyKeys.RESOURCE_ID, IdempotencyKeys.ERROR_CODE, IdempotencyKeys.ERROR_MESSAGE)
+                    + " FROM " + IdempotencyKeys.TABLE
+                    + " WHERE " + IdempotencyKeys.IDEMPOTENCY_KEY + " = :key";
 
-    private static final String COMPLETE_WITH_RESOURCE = """
-            UPDATE idempotency_keys SET resource_id = :resourceId, completed_at = now()
-            WHERE idempotency_key = :key
-            """;
+    private static final String COMPLETE_WITH_RESOURCE =
+            "UPDATE " + IdempotencyKeys.TABLE
+                    + " SET " + IdempotencyKeys.RESOURCE_ID + " = :resourceId, "
+                    + IdempotencyKeys.COMPLETED_AT + " = now()"
+                    + " WHERE " + IdempotencyKeys.IDEMPOTENCY_KEY + " = :key";
 
-    private static final String COMPLETE_WITH_ERROR = """
-            UPDATE idempotency_keys SET error_code = :errorCode, error_message = :errorMessage, completed_at = now()
-            WHERE idempotency_key = :key
-            """;
+    private static final String COMPLETE_WITH_ERROR =
+            "UPDATE " + IdempotencyKeys.TABLE
+                    + " SET " + IdempotencyKeys.ERROR_CODE + " = :errorCode, "
+                    + IdempotencyKeys.ERROR_MESSAGE + " = :errorMessage, "
+                    + IdempotencyKeys.COMPLETED_AT + " = now()"
+                    + " WHERE " + IdempotencyKeys.IDEMPOTENCY_KEY + " = :key";
 
     private static final RowMapper<IdempotencyRecord> ROW_MAPPER = (rs, rowNum) -> new IdempotencyRecord(
-            rs.getString("idempotency_key"),
-            rs.getString("operation"),
-            rs.getString("request_hash"),
-            rs.getObject("resource_id", UUID.class),
-            rs.getString("error_code"),
-            rs.getString("error_message"));
+            rs.getString(IdempotencyKeys.IDEMPOTENCY_KEY),
+            rs.getString(IdempotencyKeys.OPERATION),
+            rs.getString(IdempotencyKeys.REQUEST_HASH),
+            rs.getObject(IdempotencyKeys.RESOURCE_ID, UUID.class),
+            rs.getString(IdempotencyKeys.ERROR_CODE),
+            rs.getString(IdempotencyKeys.ERROR_MESSAGE));
 
     private final JdbcClient jdbcClient;
 

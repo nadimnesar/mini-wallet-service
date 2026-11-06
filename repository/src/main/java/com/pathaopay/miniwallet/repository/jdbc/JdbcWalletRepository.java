@@ -1,5 +1,7 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.repository.WalletRepository;
@@ -16,44 +18,51 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JdbcWalletRepository implements WalletRepository {
 
-    private static final String WALLET_COLUMNS = "id, user_id, phone, currency, created_at, updated_at";
+    private static final String WALLET_COLUMNS = String.join(", ",
+            Wallets.ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY, Wallets.CREATED_AT, Wallets.UPDATED_AT);
 
     // ON CONFLICT (any unique constraint: user_id or phone) makes the one-wallet-per-user and
     // one-wallet-per-phone rules race-safe: concurrent duplicates insert nothing.
-    private static final String INSERT_IF_ABSENT = """
-            INSERT INTO wallets (id, user_id, phone, currency)
-            VALUES (:id, :userId, :phone, :currency)
-            ON CONFLICT DO NOTHING
-            RETURNING %s, 0::BIGINT AS balance
-            """.formatted(WALLET_COLUMNS);
+    private static final String INSERT_IF_ABSENT =
+            "INSERT INTO " + Wallets.TABLE
+                    + " (" + String.join(", ", Wallets.ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY) + ")"
+                    + " VALUES (:id, :userId, :phone, :currency)"
+                    + " ON CONFLICT DO NOTHING"
+                    + " RETURNING " + WALLET_COLUMNS + ", 0::BIGINT AS " + Wallets.BALANCE_ALIAS;
 
     // The ledger is the source of truth: balance = balance_after of the latest entry, 0 if none.
-    private static final String FIND_BY_ID = """
-            SELECT w.id, w.user_id, w.phone, w.currency, w.created_at, w.updated_at,
-                   COALESCE(latest.balance_after, 0) AS balance
-            FROM wallets w
-            LEFT JOIN LATERAL (
-                SELECT t.balance_after
-                FROM wallet_transactions t
-                WHERE t.wallet_id = w.id
-                ORDER BY t.entry_no DESC
-                LIMIT 1
-            ) latest ON TRUE
-            WHERE w.id = :id
-            """;
-    private static final String EXISTS_BY_ID = "SELECT EXISTS (SELECT 1 FROM wallets WHERE id = :id)";
-    private static final String LOCK_FOR_UPDATE = "SELECT id FROM wallets WHERE id = :id FOR UPDATE";
-    private static final String EXISTS_BY_USER_ID = "SELECT EXISTS (SELECT 1 FROM wallets WHERE user_id = :userId)";
-    private static final String EXISTS_BY_PHONE = "SELECT EXISTS (SELECT 1 FROM wallets WHERE phone = :phone)";
+    private static final String LATEST_BALANCE =
+            "SELECT " + WalletTransactions.BALANCE_AFTER
+                    + " FROM " + WalletTransactions.TABLE
+                    + " WHERE " + WalletTransactions.WALLET_ID + " = " + Wallets.TABLE + "." + Wallets.ID
+                    + " ORDER BY " + WalletTransactions.ENTRY_NO + " DESC"
+                    + " LIMIT 1";
+
+    private static final String FIND_BY_ID =
+            "SELECT " + WALLET_COLUMNS + ", COALESCE((" + LATEST_BALANCE + "), 0) AS " + Wallets.BALANCE_ALIAS
+                    + " FROM " + Wallets.TABLE
+                    + " WHERE " + Wallets.ID + " = :id";
+
+    private static final String EXISTS_BY_ID =
+            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id)";
+
+    private static final String LOCK_FOR_UPDATE =
+            "SELECT " + Wallets.ID + " FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id FOR UPDATE";
+
+    private static final String EXISTS_BY_USER_ID =
+            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.USER_ID + " = :userId)";
+
+    private static final String EXISTS_BY_PHONE =
+            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.PHONE + " = :phone)";
 
     private static final RowMapper<Wallet> WALLET_ROW_MAPPER = (rs, rowNum) -> new Wallet(
-            rs.getObject("id", UUID.class),
-            rs.getObject("user_id", UUID.class),
-            rs.getString("phone"),
-            Currency.valueOf(rs.getString("currency")),
-            rs.getLong("balance"),
-            rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-            rs.getObject("updated_at", OffsetDateTime.class).toInstant());
+            rs.getObject(Wallets.ID, UUID.class),
+            rs.getObject(Wallets.USER_ID, UUID.class),
+            rs.getString(Wallets.PHONE),
+            Currency.valueOf(rs.getString(Wallets.CURRENCY)),
+            rs.getLong(Wallets.BALANCE_ALIAS),
+            rs.getObject(Wallets.CREATED_AT, OffsetDateTime.class).toInstant(),
+            rs.getObject(Wallets.UPDATED_AT, OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
 
