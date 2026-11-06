@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
 import com.pathaopay.miniwallet.model.PaymentMethod;
+import com.pathaopay.miniwallet.model.TransactionFilter;
 import com.pathaopay.miniwallet.model.TransactionType;
 import com.pathaopay.miniwallet.model.WalletTransaction;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
@@ -12,6 +13,11 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Types;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,6 +58,24 @@ public class JdbcTransactionRepository implements TransactionRepository {
                     + " ON CONFLICT (" + WalletTransactions.REFERENCE_ID + ")"
                     + " WHERE " + WalletTransactions.TYPE + " = " + ADD_MONEY + " DO NOTHING"
                     + " RETURNING " + COLUMNS;
+
+    private static final String APPEND_TRANSFER_LEG =
+            "INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
+                    WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
+                    WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
+                    WalletTransactions.BALANCE_AFTER, WalletTransactions.COUNTERPARTY_WALLET_ID,
+                    WalletTransactions.REFERENCE_ID) + ")"
+                    + " VALUES (:id, :walletId, :entryNo, :type, :amount, :balanceBefore, :balanceAfter,"
+                    + " :counterpartyWalletId, :referenceId)"
+                    + " RETURNING " + COLUMNS;
+
+    private static final String FIND_TRANSFER_OUT =
+            "SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE
+                    + " WHERE " + WalletTransactions.REFERENCE_ID + " = :transferId"
+                    + " AND " + WalletTransactions.TYPE + " = '" + TransactionType.TRANSFER_OUT.name() + "'";
+
+    private static final String NEWEST_FIRST =
+            " ORDER BY " + WalletTransactions.CREATED_AT + " DESC, " + WalletTransactions.ID + " DESC";
 
     private static final String FIND_BY_ID =
             "SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE + " WHERE " + WalletTransactions.ID + " = :id";
@@ -100,5 +124,72 @@ public class JdbcTransactionRepository implements TransactionRepository {
     @Override
     public Optional<WalletTransaction> findById(UUID transactionId) {
         return jdbcClient.sql(FIND_BY_ID).param("id", transactionId).query(ROW_MAPPER).optional();
+    }
+
+    @Override
+    public WalletTransaction appendTransferLeg(WalletTransaction entry) {
+        return jdbcClient.sql(APPEND_TRANSFER_LEG)
+                .param("id", entry.id())
+                .param("walletId", entry.walletId())
+                .param("entryNo", entry.entryNo())
+                .param("type", entry.type().name())
+                .param("amount", entry.amount())
+                .param("balanceBefore", entry.balanceBefore())
+                .param("balanceAfter", entry.balanceAfter())
+                .param("counterpartyWalletId", entry.counterpartyWalletId())
+                .param("referenceId", entry.referenceId())
+                .query(ROW_MAPPER)
+                .single();
+    }
+
+    @Override
+    public Optional<WalletTransaction> findTransferOut(UUID transferId) {
+        return jdbcClient.sql(FIND_TRANSFER_OUT).param("transferId", transferId).query(ROW_MAPPER).optional();
+    }
+
+    @Override
+    public List<WalletTransaction> search(TransactionFilter filter, int limit, long offset) {
+        Where where = Where.of(filter);
+        return jdbcClient.sql("SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE + where.sql
+                        + NEWEST_FIRST + " LIMIT :limit OFFSET :offset")
+                .params(where.params)
+                .param("limit", limit)
+                .param("offset", offset)
+                .query(ROW_MAPPER)
+                .list();
+    }
+
+    @Override
+    public long count(TransactionFilter filter) {
+        Where where = Where.of(filter);
+        return jdbcClient.sql("SELECT count(*) FROM " + WalletTransactions.TABLE + where.sql)
+                .params(where.params)
+                .query(Long.class)
+                .single();
+    }
+
+    /** WHERE clause with only the filter fields that are set, so no untyped NULL parameters are sent. */
+    private record Where(String sql, Map<String, Object> params) {
+        static Where of(TransactionFilter filter) {
+            List<String> conditions = new ArrayList<>();
+            Map<String, Object> params = new HashMap<>();
+            if (filter.walletId() != null) {
+                conditions.add(WalletTransactions.WALLET_ID + " = :walletId");
+                params.put("walletId", filter.walletId());
+            }
+            if (filter.type() != null) {
+                conditions.add(WalletTransactions.TYPE + " = :type");
+                params.put("type", filter.type().name());
+            }
+            if (filter.from() != null) {
+                conditions.add(WalletTransactions.CREATED_AT + " >= :from");
+                params.put("from", OffsetDateTime.ofInstant(filter.from(), ZoneOffset.UTC));
+            }
+            if (filter.to() != null) {
+                conditions.add(WalletTransactions.CREATED_AT + " <= :to");
+                params.put("to", OffsetDateTime.ofInstant(filter.to(), ZoneOffset.UTC));
+            }
+            return new Where(conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions), params);
+        }
     }
 }
