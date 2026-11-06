@@ -21,4 +21,14 @@ public interface WalletRepository {
     boolean existsByPhone(String phone);
 
     Optional<Wallet> findById(UUID walletId);
+
+    boolean existsById(UUID walletId);
+
+    /**
+     * Locks the wallet row ({@code SELECT ... FOR UPDATE}) until the current transaction ends, which
+     * serializes ledger appends for that wallet.
+     *
+     * @return false if the wallet does not exist
+     */
+    boolean lockForUpdate(UUID walletId);
 }

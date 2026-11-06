@@ -1,20 +1,30 @@
 package com.pathaopay.miniwallet.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.pathaopay.miniwallet.model.PaymentMethod;
+
 import java.time.Instant;
+import java.util.UUID;
 
+/** Built entirely from the immutable ledger entry, so an idempotent replay returns the same body. */
 public record AddMoneyResponse(
-        @JsonProperty("wallet_id")
-        String walletId,
+        @JsonProperty("transaction_id")
+        UUID transactionId,
 
-        @JsonProperty("balance")
-        long balance,
+        @JsonProperty("wallet_id")
+        UUID walletId,
 
         @JsonProperty("added_amount")
         long addedAmount,
 
+        @JsonProperty("balance")
+        long balance,
+
         @JsonProperty("gateway_ref")
         String gatewayRef,
+
+        @JsonProperty("payment_method")
+        PaymentMethod paymentMethod,
 
         @JsonProperty("created_at")
         Instant createdAt

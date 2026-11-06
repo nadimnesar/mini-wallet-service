@@ -39,6 +39,8 @@ public class JdbcWalletRepository implements WalletRepository {
             ) latest ON TRUE
             WHERE w.id = :id
             """;
+    private static final String EXISTS_BY_ID = "SELECT EXISTS (SELECT 1 FROM wallets WHERE id = :id)";
+    private static final String LOCK_FOR_UPDATE = "SELECT id FROM wallets WHERE id = :id FOR UPDATE";
     private static final String EXISTS_BY_USER_ID = "SELECT EXISTS (SELECT 1 FROM wallets WHERE user_id = :userId)";
     private static final String EXISTS_BY_PHONE = "SELECT EXISTS (SELECT 1 FROM wallets WHERE phone = :phone)";
 
@@ -76,6 +78,16 @@ public class JdbcWalletRepository implements WalletRepository {
     @Override
     public boolean existsByPhone(String phone) {
         return jdbcClient.sql(EXISTS_BY_PHONE).param("phone", phone).query(Boolean.class).single();
+    }
+
+    @Override
+    public boolean existsById(UUID walletId) {
+        return jdbcClient.sql(EXISTS_BY_ID).param("id", walletId).query(Boolean.class).single();
+    }
+
+    @Override
+    public boolean lockForUpdate(UUID walletId) {
+        return jdbcClient.sql(LOCK_FOR_UPDATE).param("id", walletId).query(UUID.class).optional().isPresent();
     }
 
     @Override

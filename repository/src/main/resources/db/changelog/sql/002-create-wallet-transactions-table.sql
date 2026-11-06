@@ -16,6 +16,8 @@ CREATE TABLE wallet_transactions
     counterparty_wallet_id UUID,
     -- gateway_ref for ADD_MONEY; the transfer id (shared by both legs) for transfers.
     reference_id           TEXT        NOT NULL,
+    -- Card network that funded an ADD_MONEY entry; NULL for transfers.
+    payment_method         VARCHAR(16),
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT pk_wallet_transactions PRIMARY KEY (id),
     CONSTRAINT fk_wallet_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets (id),
@@ -41,7 +43,11 @@ CREATE TABLE wallet_transactions
     CONSTRAINT ck_wallet_transactions_counterparty CHECK (
         (type = 'ADD_MONEY' AND counterparty_wallet_id IS NULL)
             OR (type <> 'ADD_MONEY' AND counterparty_wallet_id IS NOT NULL
-                AND counterparty_wallet_id <> wallet_id))
+                AND counterparty_wallet_id <> wallet_id)),
+    CONSTRAINT ck_wallet_transactions_payment_method CHECK (
+        -- IS NOT NULL is required: a CHECK whose expression is NULL counts as satisfied.
+        (type = 'ADD_MONEY' AND payment_method IS NOT NULL AND payment_method IN ('VISA', 'MASTERCARD'))
+            OR (type <> 'ADD_MONEY' AND payment_method IS NULL))
 );
 
 -- A gateway reference can credit a wallet only once.

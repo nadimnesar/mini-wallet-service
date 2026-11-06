@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.dto;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.Money;
 import com.pathaopay.miniwallet.common.constant.AppConstants.Validation;
+import com.pathaopay.miniwallet.model.PaymentMethod;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -10,13 +11,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/** Body of {@code POST /api/v1/wallets/{wallet_id}/add-money}. The wallet comes from the path. */
 public record AddMoneyRequest(
-        @NotBlank(message = Validation.WALLET_ID_REQUIRED)
-        @Size(min = Validation.ID_MIN_LENGTH, max = Validation.ID_MAX_LENGTH, message = Validation.WALLET_ID_SIZE)
-        @Pattern(regexp = Validation.ID_PATTERN, message = Validation.WALLET_ID_PATTERN)
-        @JsonProperty("wallet_id")
-        String walletId,
-
         @NotNull(message = Validation.AMOUNT_REQUIRED)
         @Min(value = Money.MIN_AMOUNT_POISHA, message = Validation.AMOUNT_MIN)
         @Max(value = Money.MAX_AMOUNT_POISHA, message = Validation.AMOUNT_MAX)
@@ -27,5 +23,9 @@ public record AddMoneyRequest(
         @Size(min = Validation.ID_MIN_LENGTH, max = Validation.GATEWAY_REF_MAX_LENGTH, message = Validation.GATEWAY_REF_SIZE)
         @Pattern(regexp = Validation.GATEWAY_REF_PATTERN, message = Validation.GATEWAY_REF_PATTERN_MESSAGE)
         @JsonProperty("gateway_ref")
-        String gatewayRef
+        String gatewayRef,
+
+        @NotNull(message = Validation.PAYMENT_METHOD_REQUIRED)
+        @JsonProperty("payment_method")
+        PaymentMethod paymentMethod
 ) {}

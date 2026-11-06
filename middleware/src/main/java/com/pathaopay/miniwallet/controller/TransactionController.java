@@ -5,6 +5,8 @@ import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(path = "/api/v1")
@@ -24,11 +27,12 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @PostMapping(path = "/add-money")
+    @PostMapping(path = "/wallets/{walletId}/add-money")
     public ResponseEntity<AddMoneyResponse> addMoney(
-            @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
+            @PathVariable("walletId") UUID walletId,
+            @RequestHeader(name = "Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
             @RequestBody @Valid AddMoneyRequest request) {
-        AddMoneyResponse response = transactionService.addMoney(request, idempotencyKey);
+        AddMoneyResponse response = transactionService.addMoney(walletId, request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

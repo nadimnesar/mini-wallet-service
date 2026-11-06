@@ -7,7 +7,7 @@ import com.pathaopay.miniwallet.common.WalletNotFoundException;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.WalletResponse;
 import com.pathaopay.miniwallet.model.Currency;
-import com.pathaopay.miniwallet.support.PostgresIntegrationTest;
+import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs the real wallet service, JDBC repository and Liquibase schema against real PostgreSQL. */
-class WalletServiceIntegrationTest extends PostgresIntegrationTest {
+class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
@@ -93,9 +93,10 @@ class WalletServiceIntegrationTest extends PostgresIntegrationTest {
         UUID id = wallet.walletId();
         jdbcClient.sql("""
                         INSERT INTO wallet_transactions
-                            (id, wallet_id, entry_no, type, amount, balance_before, balance_after, reference_id)
-                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, 'GW-1'),
-                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, 'GW-2')
+                            (id, wallet_id, entry_no, type, amount, balance_before, balance_after, reference_id,
+                             payment_method)
+                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, 'GW-1', 'VISA'),
+                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, 'GW-2', 'MASTERCARD')
                         """)
                 .param("t1", UUID.randomUUID()).param("t2", UUID.randomUUID()).param("w", id)
                 .update();

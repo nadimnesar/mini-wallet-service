@@ -2,7 +2,7 @@ package com.pathaopay.miniwallet.ledger;
 
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
-import com.pathaopay.miniwallet.support.PostgresIntegrationTest;
+import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * every chain starts at 0, continues exactly from the previous balance, never forks, never goes
  * negative and keeps the arithmetic and money rules consistent.
  */
-class LedgerIntegrityIntegrationTest extends PostgresIntegrationTest {
+class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
@@ -110,6 +110,16 @@ class LedgerIntegrityIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void paymentMethodIsRequiredForAddMoneyOnly() {
+        assertRejected(() -> jdbcClient.sql("""
+                        INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before,
+                                                         balance_after, reference_id)
+                        VALUES (:id, :w, 1, 'ADD_MONEY', 5000, 0, 5000, 'GW-1')""")
+                .param("id", UUID.randomUUID()).param("w", alice)
+                .update());
+    }
+
+    @Test
     void earlierEntriesCannotBeDeleted() {
         insert(alice, 1, "ADD_MONEY", 50000, 0, 50000, null, "GW-1");
         insert(alice, 2, "ADD_MONEY", 10000, 50000, 60000, null, "GW-2");
@@ -123,8 +133,10 @@ class LedgerIntegrityIntegrationTest extends PostgresIntegrationTest {
                         UUID counterparty, String referenceId) {
         jdbcClient.sql("""
                         INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before,
-                                                         balance_after, counterparty_wallet_id, reference_id)
-                        VALUES (:id, :walletId, :entryNo, :type, :amount, :before, :after, :counterparty, :ref)
+                                                         balance_after, counterparty_wallet_id, reference_id,
+                                                         payment_method)
+                        VALUES (:id, :walletId, :entryNo, :type, :amount, :before, :after, :counterparty, :ref,
+                                :paymentMethod)
                         """)
                 .param("id", UUID.randomUUID())
                 .param("walletId", walletId)
@@ -135,6 +147,7 @@ class LedgerIntegrityIntegrationTest extends PostgresIntegrationTest {
                 .param("after", after)
                 .param("counterparty", counterparty, java.sql.Types.OTHER)
                 .param("ref", referenceId)
+                .param("paymentMethod", "ADD_MONEY".equals(type) ? "VISA" : null, java.sql.Types.VARCHAR)
                 .update();
     }
 
