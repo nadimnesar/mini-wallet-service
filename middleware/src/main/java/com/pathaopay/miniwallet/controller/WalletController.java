@@ -12,7 +12,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping(path = "/api/v1/wallets", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/v1/wallets")
 @Validated
 public class WalletController {
 
@@ -22,18 +22,14 @@ public class WalletController {
         this.walletService = walletService;
     }
 
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping
     public ResponseEntity<WalletResponse> createWallet(@RequestBody @Valid CreateWalletRequest request) {
         WalletResponse response = walletService.createWallet(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{walletId}")
-    public ResponseEntity<WalletResponse> getWallet(
-            @PathVariable("walletId")
-            @Pattern(regexp = "^[a-zA-Z0-9_.-]{1,64}$", message = "Invalid wallet_id format")
-            String walletId) {
+    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") String walletId) {
         WalletResponse response = walletService.getWallet(walletId);
         return ResponseEntity.ok(response);
     }

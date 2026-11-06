@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 
 @RestController
+@RequestMapping(path = "/api/v1")
 @Validated
 public class TransactionController {
 
@@ -23,7 +24,7 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @PostMapping(path = "/api/v1/add-money")
+    @PostMapping(path = "/add-money")
     public ResponseEntity<AddMoneyResponse> addMoney(
             @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid AddMoneyRequest request) {
@@ -31,7 +32,7 @@ public class TransactionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping(path = "/api/v1/transfers")
+    @PostMapping(path = "/transfers")
     public ResponseEntity<TransferResponse> transfer(
             @RequestHeader(name = "Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid TransferRequest request) {
@@ -39,7 +40,7 @@ public class TransactionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping(path = "/api/v1/transactions")
+    @GetMapping(path = "/transactions")
     public ResponseEntity<TransactionPageResponse> listTransactions(
             @RequestParam(name = "wallet_id", required = false)
             String walletId,
@@ -67,7 +68,7 @@ public class TransactionController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping(path = "/api/v1/transactions/{transactionId}")
+    @GetMapping(path = "/transactions/{transactionId}")
     public ResponseEntity<TransactionDetailResponse> getTransactionDetails(
             @PathVariable("transactionId") String transactionId) {
         TransactionDetailResponse response = transactionService.getTransactionDetails(transactionId);
