@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.ledger;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
@@ -112,9 +113,10 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void paymentMethodIsRequiredForAddMoneyOnly() {
-        assertRejected(() -> jdbcClient.sql("""
-                        INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before,
-                                                         balance_after, reference_id)
+        assertRejected(() -> jdbcClient.sql("INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
+                        WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
+                        WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
+                        WalletTransactions.BALANCE_AFTER, WalletTransactions.REFERENCE_ID) + ")" + """
                         VALUES (:id, :w, 1, 'ADD_MONEY', 5000, 0, 5000, gen_random_uuid())""")
                 .param("id", UUID.randomUUID()).param("w", alice)
                 .update());
@@ -125,17 +127,19 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         insert(alice, 1, "ADD_MONEY", 50000, 0, 50000, null, "GW-1");
         insert(alice, 2, "ADD_MONEY", 10000, 50000, 60000, null, "GW-2");
 
-        assertRejected(() -> jdbcClient.sql("DELETE FROM wallet_transactions WHERE wallet_id = :w AND entry_no = 1")
+        assertRejected(() -> jdbcClient.sql("DELETE FROM " + WalletTransactions.TABLE
+                        + " WHERE " + WalletTransactions.WALLET_ID + " = :w AND " + WalletTransactions.ENTRY_NO + " = 1")
                 .param("w", alice)
                 .update());
     }
 
     private void insert(UUID walletId, long entryNo, String type, long amount, long before, long after,
                         UUID counterparty, String referenceId) {
-        jdbcClient.sql("""
-                        INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before,
-                                                         balance_after, counterparty_wallet_id, reference_id,
-                                                         payment_method)
+        jdbcClient.sql("INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
+                        WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
+                        WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
+                        WalletTransactions.BALANCE_AFTER, WalletTransactions.COUNTERPARTY_WALLET_ID,
+                        WalletTransactions.REFERENCE_ID, WalletTransactions.PAYMENT_METHOD) + ")" + """
                         VALUES (:id, :walletId, :entryNo, :type, :amount, :before, :after, :counterparty, :ref,
                                 :paymentMethod)
                         """)
@@ -153,7 +157,7 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long entryCount(UUID walletId) {
-        return jdbcClient.sql("SELECT count(*) FROM wallet_transactions WHERE wallet_id = :w")
+        return jdbcClient.sql("SELECT count(*) FROM " + WalletTransactions.TABLE + " WHERE " + WalletTransactions.WALLET_ID + " = :w")
                 .param("w", walletId)
                 .query(Long.class)
                 .single();

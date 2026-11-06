@@ -1,5 +1,7 @@
 package com.pathaopay.miniwallet.service;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
@@ -92,10 +94,11 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     void walletBalanceIsTheLatestLedgerBalance() {
         WalletResponse wallet = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
         UUID id = wallet.walletId();
-        jdbcClient.sql("""
-                        INSERT INTO wallet_transactions
-                            (id, wallet_id, entry_no, type, amount, balance_before, balance_after, reference_id,
-                             payment_method)
+        jdbcClient.sql("INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
+                        WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
+                        WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
+                        WalletTransactions.BALANCE_AFTER, WalletTransactions.REFERENCE_ID,
+                        WalletTransactions.PAYMENT_METHOD) + ")" + """
                         VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, gen_random_uuid(), 'VISA'),
                                (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, gen_random_uuid(), 'MASTERCARD')
                         """)
@@ -172,14 +175,14 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String storedPhone(UUID walletId) {
-        return jdbcClient.sql("SELECT phone FROM wallets WHERE id = :id")
+        return jdbcClient.sql("SELECT " + Wallets.PHONE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id")
                 .param("id", walletId)
                 .query(String.class)
                 .single();
     }
 
     private long walletCount() {
-        return jdbcClient.sql("SELECT count(*) FROM wallets").query(Long.class).single();
+        return jdbcClient.sql("SELECT count(*) FROM " + Wallets.TABLE).query(Long.class).single();
     }
 
     /** Deterministic user_id (a UUID) for a readable test name. */

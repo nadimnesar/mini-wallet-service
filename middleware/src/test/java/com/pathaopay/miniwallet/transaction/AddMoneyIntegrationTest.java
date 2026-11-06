@@ -1,5 +1,7 @@
 package com.pathaopay.miniwallet.transaction;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
+import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
@@ -77,7 +79,8 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         assertEquals("MASTERCARD", second.body().get("payment_method").asString());
         assertEquals(1, gatewayCalls("mastercard"));
         assertEquals(List.of(1L, 2L), jdbcClient.sql(
-                        "SELECT entry_no FROM wallet_transactions WHERE wallet_id = :w ORDER BY entry_no")
+                        "SELECT " + WalletTransactions.ENTRY_NO + " FROM " + WalletTransactions.TABLE
+                                + " WHERE " + WalletTransactions.WALLET_ID + " = :w ORDER BY " + WalletTransactions.ENTRY_NO)
                 .param("w", walletId).query(Long.class).list());
     }
 
@@ -333,11 +336,11 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long ledgerEntries() {
-        return jdbcClient.sql("SELECT count(*) FROM wallet_transactions").query(Long.class).single();
+        return jdbcClient.sql("SELECT count(*) FROM " + WalletTransactions.TABLE).query(Long.class).single();
     }
 
     private long idempotencyKeys() {
-        return jdbcClient.sql("SELECT count(*) FROM idempotency_keys").query(Long.class).single();
+        return jdbcClient.sql("SELECT count(*) FROM " + IdempotencyKeys.TABLE).query(Long.class).single();
     }
 
     /** Deterministic user_id (a UUID) for a readable test name. */
