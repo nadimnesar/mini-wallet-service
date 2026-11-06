@@ -36,6 +36,7 @@ Guidance for Claude Code when working in this repository.
 ## Database schema (Liquibase)
 
 - Changelogs live in `clients/src/main/resources/db/changelog/`, one formatted-SQL file per table (`sql/00N-create-<table>-table.sql`).
+- **No comments in changeset SQL files.** Only the Liquibase directives (`--liquibase formatted sql`, `--changeset`, `--rollback`) and SQL. Explain the schema in code or docs instead.
 - **Pre-release: no backward-compatible migrations.** All data is test data. To change the schema, edit the table's existing changeset in place to show the final shape. Don't add `ALTER`/data-migration changesets.
 - After editing an applied changeset, reset local data: `docker compose down -v`. Liquibase refuses to start on a checksum mismatch. Testcontainers tests always start from an empty database.
 

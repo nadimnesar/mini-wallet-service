@@ -1,12 +1,10 @@
 --liquibase formatted sql
 
 --changeset miniwallet:002-create-wallet-transactions-table
---comment: Append-only ledger and the single source of truth for balances. A wallet's balance is the balance_after of its latest entry (0 if none).
 CREATE TABLE wallet_transactions
 (
     id                     UUID        NOT NULL,
     wallet_id              UUID        NOT NULL,
-    -- 1, 2, 3, ... per wallet: the position of this entry in the wallet's chain.
     entry_no               BIGINT      NOT NULL,
     previous_entry_no      BIGINT GENERATED ALWAYS AS (NULLIF(entry_no - 1, 0)) STORED,
     type                   VARCHAR(16) NOT NULL,
@@ -14,26 +12,18 @@ CREATE TABLE wallet_transactions
     balance_before         BIGINT      NOT NULL,
     balance_after          BIGINT      NOT NULL,
     counterparty_wallet_id UUID,
-    -- gateway_ref for ADD_MONEY; the transfer id (shared by both legs) for transfers.
     reference_id           TEXT        NOT NULL,
-    -- Card network that funded an ADD_MONEY entry; NULL for transfers.
     payment_method         VARCHAR(16),
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT pk_wallet_transactions PRIMARY KEY (id),
     CONSTRAINT fk_wallet_transactions_wallet FOREIGN KEY (wallet_id) REFERENCES wallets (id),
     CONSTRAINT fk_wallet_transactions_counterparty FOREIGN KEY (counterparty_wallet_id) REFERENCES wallets (id),
-
-    -- Chain integrity: at most one entry per position (no forks) ...
     CONSTRAINT uq_wallet_transactions_entry UNIQUE (wallet_id, entry_no),
     CONSTRAINT uq_wallet_transactions_entry_balance UNIQUE (wallet_id, entry_no, balance_after),
-    -- ... every entry continues from the previous entry's balance (no gaps, no jumps) ...
     CONSTRAINT fk_wallet_transactions_previous FOREIGN KEY (wallet_id, previous_entry_no, balance_before)
         REFERENCES wallet_transactions (wallet_id, entry_no, balance_after),
-    -- ... and the first entry starts from 0: the initial balance of every wallet is 0.
     CONSTRAINT ck_wallet_transactions_entry_no CHECK (entry_no >= 1),
     CONSTRAINT ck_wallet_transactions_first_entry_from_zero CHECK (entry_no > 1 OR balance_before = 0),
-
-    -- Money rules (amounts in poisha).
     CONSTRAINT ck_wallet_transactions_type CHECK (type IN ('ADD_MONEY', 'TRANSFER_IN', 'TRANSFER_OUT')),
     CONSTRAINT ck_wallet_transactions_amount CHECK (amount BETWEEN 100 AND 2500000),
     CONSTRAINT ck_wallet_transactions_non_negative CHECK (balance_after >= 0),
@@ -45,12 +35,10 @@ CREATE TABLE wallet_transactions
             OR (type <> 'ADD_MONEY' AND counterparty_wallet_id IS NOT NULL
                 AND counterparty_wallet_id <> wallet_id)),
     CONSTRAINT ck_wallet_transactions_payment_method CHECK (
-        -- IS NOT NULL is required: a CHECK whose expression is NULL counts as satisfied.
         (type = 'ADD_MONEY' AND payment_method IS NOT NULL AND payment_method IN ('VISA', 'MASTERCARD'))
             OR (type <> 'ADD_MONEY' AND payment_method IS NULL))
 );
 
--- A gateway reference can credit a wallet only once.
 CREATE UNIQUE INDEX uq_wallet_transactions_gateway_ref
     ON wallet_transactions (reference_id) WHERE type = 'ADD_MONEY';
 
