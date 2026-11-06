@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.service.impl;
 
+import com.pathaopay.miniwallet.common.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
@@ -29,9 +30,24 @@ public class DefaultWalletService implements WalletService {
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
         String phone = PhoneNumberUtils.normalize(request.phone());
-        return walletRepository.insertIfUserHasNone(newWalletId(), request.userId(), phone, Currency.BDT)
+        return walletRepository.insertIfAbsent(newWalletId(), request.userId(), phone, Currency.BDT)
                 .map(DefaultWalletService::toResponse)
-                .orElseThrow(() -> new DuplicateWalletException(ErrorMessages.DUPLICATE_WALLET_PREFIX + request.userId()));
+                .orElseThrow(() -> conflictFor(request.userId(), phone));
+    }
+
+    /**
+     * The insert was skipped because a unique constraint matched. Runs in the same read-write
+     * transaction on the primary, so the conflicting (committed) wallet is visible here.
+     */
+    private RuntimeException conflictFor(String userId, String phone) {
+        if (walletRepository.existsByUserId(userId)) {
+            return new DuplicateWalletException(ErrorMessages.DUPLICATE_WALLET_PREFIX + userId);
+        }
+        if (walletRepository.existsByPhone(phone)) {
+            return new DuplicatePhoneException(ErrorMessages.DUPLICATE_PHONE_PREFIX + phone);
+        }
+        // Only reachable on a generated wallet-id collision (random 128-bit UUID).
+        return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
     }
 
     /** Served by the read replica; the balance may lag the primary by the replication delay. */

@@ -15,15 +15,18 @@ public class JdbcWalletRepository implements WalletRepository {
 
     private static final String COLUMNS = "id, user_id, phone, currency, balance, created_at, updated_at";
 
-    // ON CONFLICT makes the one-wallet-per-user rule race-safe: concurrent duplicates insert nothing.
-    private static final String INSERT_IF_USER_HAS_NONE = """
+    // ON CONFLICT (any unique constraint: user_id or phone) makes the one-wallet-per-user and
+    // one-wallet-per-phone rules race-safe: concurrent duplicates insert nothing.
+    private static final String INSERT_IF_ABSENT = """
             INSERT INTO wallets (id, user_id, phone, currency)
             VALUES (:id, :userId, :phone, :currency)
-            ON CONFLICT (user_id) DO NOTHING
+            ON CONFLICT DO NOTHING
             RETURNING %s
             """.formatted(COLUMNS);
 
     private static final String FIND_BY_ID = "SELECT %s FROM wallets WHERE id = :id".formatted(COLUMNS);
+    private static final String EXISTS_BY_USER_ID = "SELECT EXISTS (SELECT 1 FROM wallets WHERE user_id = :userId)";
+    private static final String EXISTS_BY_PHONE = "SELECT EXISTS (SELECT 1 FROM wallets WHERE phone = :phone)";
 
     private static final RowMapper<Wallet> WALLET_ROW_MAPPER = (rs, rowNum) -> new Wallet(
             rs.getString("id"),
@@ -41,14 +44,24 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> insertIfUserHasNone(String walletId, String userId, String phone, Currency currency) {
-        return jdbcClient.sql(INSERT_IF_USER_HAS_NONE)
+    public Optional<Wallet> insertIfAbsent(String walletId, String userId, String phone, Currency currency) {
+        return jdbcClient.sql(INSERT_IF_ABSENT)
                 .param("id", walletId)
                 .param("userId", userId)
                 .param("phone", phone)
                 .param("currency", currency.name())
                 .query(WALLET_ROW_MAPPER)
                 .optional();
+    }
+
+    @Override
+    public boolean existsByUserId(String userId) {
+        return jdbcClient.sql(EXISTS_BY_USER_ID).param("userId", userId).query(Boolean.class).single();
+    }
+
+    @Override
+    public boolean existsByPhone(String phone) {
+        return jdbcClient.sql(EXISTS_BY_PHONE).param("phone", phone).query(Boolean.class).single();
     }
 
     @Override

@@ -8,11 +8,16 @@ import java.util.Optional;
 public interface WalletRepository {
 
     /**
-     * Inserts a new zero-balance wallet unless {@code userId} already owns one.
+     * Inserts a new zero-balance wallet unless {@code userId} or {@code phone} is already used by
+     * another wallet. Safe under concurrency: at most one of several racing inserts succeeds.
      *
-     * @return the created wallet, or empty if the user already has a wallet
+     * @return the created wallet, or empty if the user or the phone already has a wallet
      */
-    Optional<Wallet> insertIfUserHasNone(String walletId, String userId, String phone, Currency currency);
+    Optional<Wallet> insertIfAbsent(String walletId, String userId, String phone, Currency currency);
+
+    boolean existsByUserId(String userId);
+
+    boolean existsByPhone(String phone);
 
     Optional<Wallet> findById(String walletId);
 }
