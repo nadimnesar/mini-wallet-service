@@ -1,5 +1,8 @@
 package com.pathaopay.miniwallet.common.exception;
 
+import lombok.Getter;
+
+@Getter
 public abstract class MiniWalletException extends RuntimeException {
 
     private final String errorCode;
@@ -12,10 +15,6 @@ public abstract class MiniWalletException extends RuntimeException {
     protected MiniWalletException(String errorCode, String message, Throwable cause) {
         super(message, cause);
         this.errorCode = errorCode;
-    }
-
-    public String getErrorCode() {
-        return errorCode;
     }
 
     /**

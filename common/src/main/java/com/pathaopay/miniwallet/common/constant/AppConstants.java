@@ -1,31 +1,29 @@
 package com.pathaopay.miniwallet.common.constant;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AppConstants {
 
-    private AppConstants() {
-    }
-
     /** HTTP header names. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Headers {
         public static final String IDEMPOTENCY_KEY = "Idempotency-Key";
-
-        private Headers() {
-        }
     }
 
     /** Money rules. All amounts are integer poisha (1 BDT = 100 poisha). */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Money {
         public static final long POISHA_PER_BDT = 100;
         public static final long MIN_AMOUNT_POISHA = 100;
         public static final long MAX_AMOUNT_POISHA = 2_500_000;
         /** ISO 4217 code of the only supported currency. */
         public static final String CURRENCY_CODE = "BDT";
-
-        private Money() {
-        }
     }
 
     /** Bangladeshi mobile number formats. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Phone {
         /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */
         public static final String LOCAL_PREFIX = "0";
@@ -34,12 +32,10 @@ public final class AppConstants {
          * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
          */
         public static final String ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
-
-        private Phone() {
-        }
     }
 
     /** Request validation limits, patterns and messages. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Validation {
         public static final int ID_MIN_LENGTH = 1;
         public static final int ID_MAX_LENGTH = 64;
@@ -79,12 +75,10 @@ public final class AppConstants {
         public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
 
         public static final String NOTE_SIZE = "note must not exceed " + NOTE_MAX_LENGTH + " characters";
-
-        private Validation() {
-        }
     }
 
     /** Machine-readable error codes returned in {@code error.code}. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class ErrorCodes {
         public static final String VALIDATION_ERROR = "VALIDATION_ERROR";
         public static final String MISSING_IDEMPOTENCY_KEY = "MISSING_IDEMPOTENCY_KEY";
@@ -108,12 +102,10 @@ public final class AppConstants {
         public static final String NOT_FOUND = "NOT_FOUND";
         public static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
         public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
-
-        private ErrorCodes() {
-        }
     }
 
     /** Human-readable error messages returned in {@code error.message}. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class ErrorMessages {
         public static final String VALIDATION_FAILED = "Validation failed";
         public static final String INVALID_PARAMETER_OR_HEADER = "Invalid parameter or header value";
@@ -147,30 +139,23 @@ public final class AppConstants {
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
-
-        private ErrorMessages() {
-        }
     }
 
     /** Mock-able external payment gateway (one HTTP API per card network). */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class PaymentGateway {
         public static final String PROPERTIES_PREFIX = "miniwallet.payment-gateway";
         public static final String API_KEY_HEADER = "X-Api-Key";
         /** Format with the lower-case network name, e.g. visa. */
         public static final String VERIFY_PATH = "/%s/v1/payments/verify";
-
-        private PaymentGateway() {
-        }
     }
 
     /** Read/write datasource property prefixes and bean names. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class Database {
         public static final String WRITE_PROPERTIES_PREFIX = "miniwallet.datasource.write";
         public static final String READ_PROPERTIES_PREFIX = "miniwallet.datasource.read";
         public static final String WRITE_BEAN = "writeDataSource";
         public static final String READ_BEAN = "readDataSource";
-
-        private Database() {
-        }
     }
 }

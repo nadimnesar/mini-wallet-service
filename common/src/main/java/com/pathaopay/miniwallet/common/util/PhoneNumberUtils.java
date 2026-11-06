@@ -2,6 +2,8 @@ package com.pathaopay.miniwallet.common.util;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.Phone;
 import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,12 +15,10 @@ import java.util.regex.Pattern;
  * {@code +8801XXXXXXXXX}.
  * Surrounding whitespace is ignored.
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class PhoneNumberUtils {
 
     private static final Pattern ACCEPTED = Pattern.compile(Phone.ACCEPTED_PATTERN);
-
-    private PhoneNumberUtils() {
-    }
 
     /** Returns {@code true} if {@code phone} is in one of the accepted formats. */
     public static boolean isValid(String phone) {
