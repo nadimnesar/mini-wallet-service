@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.repository.config;
+package com.pathaopay.miniwallet.client.config;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.Database;
 import com.zaxxer.hikari.HikariDataSource;
