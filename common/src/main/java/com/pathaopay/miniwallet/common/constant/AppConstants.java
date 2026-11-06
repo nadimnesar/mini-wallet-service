@@ -23,6 +23,20 @@ public final class AppConstants {
         }
     }
 
+    /** Bangladeshi mobile number formats. */
+    public static final class Phone {
+        /** Prefix that turns the 10-digit subscriber number (1XXXXXXXXX) into the local form. */
+        public static final String LOCAL_PREFIX = "0";
+        /**
+         * Accepted input: 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX.
+         * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
+         */
+        public static final String ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
+
+        private Phone() {
+        }
+    }
+
     /** Request validation limits, patterns and messages. */
     public static final class Validation {
         public static final int ID_MIN_LENGTH = 1;
@@ -39,6 +53,8 @@ public final class AppConstants {
         public static final String USER_ID_REQUIRED = "user_id is required";
 
         public static final String PHONE_REQUIRED = "phone is required";
+        public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
+                + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
 
         public static final String WALLET_ID_REQUIRED = "wallet_id is required";
         public static final String WALLET_ID_SIZE = "wallet_id" + ID_LENGTH;
@@ -78,6 +94,7 @@ public final class AppConstants {
         public static final String INVALID_PAYLOAD = "INVALID_PAYLOAD";
         public static final String INVALID_ARGUMENT = "INVALID_ARGUMENT";
         public static final String INVALID_AMOUNT = "INVALID_AMOUNT";
+        public static final String INVALID_PHONE_NUMBER = "INVALID_PHONE_NUMBER";
         public static final String WALLET_NOT_FOUND = "WALLET_NOT_FOUND";
         public static final String TRANSACTION_NOT_FOUND = "TRANSACTION_NOT_FOUND";
         public static final String DUPLICATE_WALLET = "DUPLICATE_WALLET";
@@ -106,6 +123,7 @@ public final class AppConstants {
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
+        public static final String INVALID_PHONE_NUMBER = Validation.PHONE_FORMAT;
         /** Format with the HTTP method. */
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
