@@ -27,14 +27,7 @@ public final class AppConstants {
     public static final String PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
 
     // ---- Request validation limits, patterns and messages
-    public static final int ID_MIN_LENGTH = 1;
-    public static final int ID_MAX_LENGTH = 64;
     public static final int NOTE_MAX_LENGTH = 255;
-
-    public static final String ID_PATTERN = "^[a-zA-Z0-9_.-]+$";
-
-    private static final String ID_CHARS = " must contain only alphanumeric characters, underscores, dashes, or dots";
-    private static final String ID_LENGTH = " must be between " + ID_MIN_LENGTH + " and " + ID_MAX_LENGTH + " characters";
 
     public static final String USER_ID_REQUIRED = "user_id is required";
 
@@ -43,16 +36,10 @@ public final class AppConstants {
             + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
 
     public static final String WALLET_ID_REQUIRED = "wallet_id is required";
-    public static final String WALLET_ID_SIZE = "wallet_id" + ID_LENGTH;
-    public static final String WALLET_ID_PATTERN = "wallet_id" + ID_CHARS;
 
     public static final String FROM_WALLET_ID_REQUIRED = "from_wallet_id is required";
-    public static final String FROM_WALLET_ID_SIZE = "from_wallet_id" + ID_LENGTH;
-    public static final String FROM_WALLET_ID_PATTERN = "from_wallet_id" + ID_CHARS;
 
     public static final String TO_WALLET_ID_REQUIRED = "to_wallet_id is required";
-    public static final String TO_WALLET_ID_SIZE = "to_wallet_id" + ID_LENGTH;
-    public static final String TO_WALLET_ID_PATTERN = "to_wallet_id" + ID_CHARS;
 
     public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
 

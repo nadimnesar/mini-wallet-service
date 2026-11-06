@@ -1,14 +1,17 @@
 package com.pathaopay.miniwallet.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.pathaopay.miniwallet.model.TransactionType;
+
 import java.time.Instant;
+import java.util.UUID;
 
 public record TransactionItemResponse(
         @JsonProperty("transaction_id")
-        String transactionId,
+        UUID transactionId,
 
         @JsonProperty("type")
-        String type,
+        TransactionType type,
 
         @JsonProperty("amount")
         long amount,
@@ -17,10 +20,10 @@ public record TransactionItemResponse(
         long balanceAfter,
 
         @JsonProperty("counterparty_wallet_id")
-        String counterpartyWalletId,
+        UUID counterpartyWalletId,
 
         @JsonProperty("reference_id")
-        String referenceId,
+        UUID referenceId,
 
         @JsonProperty("created_at")
         Instant createdAt
