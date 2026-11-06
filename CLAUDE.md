@@ -11,6 +11,11 @@ Guidance for Claude Code when working in this repository.
 - Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 
+## API spec (`docs/openapi.yaml`)
+
+- `docs/openapi.yaml` is the hand-written OpenAPI 3.1 spec. Keep it minimal: paths, request/response schemas, status codes.
+- **Update it in the same change** whenever an API changes: a controller endpoint, path, header, query param, request/response DTO field, validation rule, or the status mapped to an error code. Commit it with that change.
+
 ## Money model (ledger is the source of truth)
 
 - `wallets` has **no balance column**. A wallet's balance is the `balance_after` of its latest `wallet_transactions` entry (by `entry_no`), or 0 if it has none. Never add a mutable balance column.
