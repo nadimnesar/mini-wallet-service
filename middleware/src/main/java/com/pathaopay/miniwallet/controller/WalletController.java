@@ -7,14 +7,20 @@ import com.pathaopay.miniwallet.dto.WalletResponse;
 import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import jakarta.validation.Valid;
+import com.pathaopay.miniwallet.dto.TransactionPageResponse;
+import com.pathaopay.miniwallet.model.TransactionType;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -44,5 +50,31 @@ public class WalletController {
             @RequestBody @Valid AddMoneyRequest request) {
         AddMoneyResponse response = transactionService.addMoney(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{walletId}/transactions")
+    public ResponseEntity<TransactionPageResponse> getWalletTransactions(
+            @PathVariable("walletId") UUID walletId,
+
+            @RequestParam(name = "type", required = false)
+            TransactionType type,
+
+            @RequestParam(name = "from", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant from,
+
+            @RequestParam(name = "to", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant to,
+
+            @RequestParam(name = "page", defaultValue = "1")
+            @Min(value = 1, message = "page must be at least 1")
+            int page,
+
+            @RequestParam(name = "page_size", defaultValue = "20")
+            @Min(value = 1, message = "page_size must be at least 1")
+            @Max(value = 100, message = "page_size cannot exceed 100")
+            int pageSize) {
+        return ResponseEntity.ok(transactionService.getTransactions(walletId, type, from, to, page, pageSize));
     }
 }

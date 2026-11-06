@@ -30,6 +30,7 @@ public class GlobalExceptionHandler {
     private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
             Map.entry(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.INVALID_PHONE_NUMBER, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.INVALID_DATE_RANGE, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
             Map.entry(ErrorCode.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),

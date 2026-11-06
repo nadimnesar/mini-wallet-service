@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.controller;
 
 import com.pathaopay.miniwallet.dto.TransactionDetailResponse;
 import com.pathaopay.miniwallet.dto.TransactionPageResponse;
+import com.pathaopay.miniwallet.model.TransactionType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -12,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(path = "/api/v1/transactions")
@@ -24,10 +26,10 @@ public class TransactionController {
     @GetMapping
     public ResponseEntity<TransactionPageResponse> listTransactions(
             @RequestParam(name = "wallet_id", required = false)
-            String walletId,
+            UUID walletId,
 
             @RequestParam(name = "type", required = false)
-            String type,
+            TransactionType type,
 
             @RequestParam(name = "from", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -51,7 +53,7 @@ public class TransactionController {
 
     @GetMapping(path = "/{transactionId}")
     public ResponseEntity<TransactionDetailResponse> getTransactionDetails(
-            @PathVariable("transactionId") String transactionId) {
+            @PathVariable("transactionId") UUID transactionId) {
         TransactionDetailResponse response = transactionService.getTransactionDetails(transactionId);
         return ResponseEntity.ok(response);
     }

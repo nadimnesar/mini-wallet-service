@@ -2,7 +2,10 @@ package com.pathaopay.miniwallet.service;
 
 import com.pathaopay.miniwallet.dto.*;
 
+import com.pathaopay.miniwallet.model.TransactionType;
+
 import java.time.Instant;
+import java.util.UUID;
 
 public interface TransactionService {
     AddMoneyResponse addMoney(AddMoneyRequest request, String idempotencyKey);
@@ -10,13 +13,13 @@ public interface TransactionService {
     TransferResponse transfer(TransferRequest request, String idempotencyKey);
 
     TransactionPageResponse getTransactions(
-            String walletId,
-            String type,
+            UUID walletId,
+            TransactionType type,
             Instant from,
             Instant to,
             int page,
             int pageSize
     );
 
-    TransactionDetailResponse getTransactionDetails(String transactionId);
+    TransactionDetailResponse getTransactionDetails(UUID transactionId);
 }

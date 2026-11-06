@@ -10,10 +10,15 @@ import com.pathaopay.miniwallet.common.exception.idempotency.ReplayedFailureExce
 import com.pathaopay.miniwallet.common.exception.payment.DuplicateGatewayRefException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentDeclinedException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchException;
+import com.pathaopay.miniwallet.common.exception.transaction.InsufficientBalanceException;
+import com.pathaopay.miniwallet.common.exception.transaction.InvalidDateRangeException;
+import com.pathaopay.miniwallet.common.exception.transaction.SameWalletTransferException;
+import com.pathaopay.miniwallet.common.exception.transaction.TransactionNotFoundException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.dto.*;
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
+import com.pathaopay.miniwallet.model.TransactionFilter;
 import com.pathaopay.miniwallet.model.TransactionType;
 import com.pathaopay.miniwallet.model.WalletTransaction;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
@@ -22,6 +27,7 @@ import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -29,13 +35,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
 public class DefaultTransactionService implements TransactionService {
 
     private static final String ADD_MONEY_OPERATION = "ADD_MONEY";
+    private static final String TRANSFER_OPERATION = "TRANSFER";
+    private static final String TRANSFER_STATUS_COMPLETED = "COMPLETED";
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
@@ -46,14 +57,10 @@ public class DefaultTransactionService implements TransactionService {
     /**
      * Credits the wallet once the card network's gateway confirms the payment.
      *
-     * <p>Claiming the Idempotency-Key, crediting the ledger and storing the outcome happen in one
-     * database transaction, so a concurrent request with the same key waits and then replays the
-     * stored outcome: exactly one execution. Deterministic failures (wallet not found, payment
-     * declined, ...) are stored and replayed too; transient gateway failures roll the claim back so
-     * the client can retry with the same key.
-     *
      * <p>Trade-off: the transaction stays open during the gateway call (bounded by the gateway
      * read timeout), holding a connection and the key's row lock, but no wallet lock.
+     *
+     * @see #executeIdempotently
      */
     @Override
     public AddMoneyResponse addMoney(AddMoneyRequest request, String idempotencyKey) {
@@ -61,14 +68,50 @@ public class DefaultTransactionService implements TransactionService {
         String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, walletId.toString(),
                 request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name()));
 
-        Outcome outcome = transactionTemplate.execute(status -> {
-            if (!idempotencyRepository.tryClaim(idempotencyKey, ADD_MONEY_OPERATION, requestHash)) {
-                return replay(idempotencyKey, requestHash);
+        return executeIdempotently(idempotencyKey, ADD_MONEY_OPERATION, requestHash, () -> {
+            AddMoneyResponse response = toAddMoneyResponse(creditWallet(walletId, request));
+            return new Created<>(response.transactionId(), response);
+        }, this::rebuildAddMoney);
+    }
+
+    /**
+     * Moves money between two wallets: both ledger legs (TRANSFER_OUT and TRANSFER_IN, sharing the
+     * transfer id as reference_id) are appended in one database transaction, so either both exist or
+     * neither does. Wallet rows are locked in ascending id order, so opposite transfers between the
+     * same two wallets cannot deadlock.
+     *
+     * @see #executeIdempotently
+     */
+    @Override
+    public TransferResponse transfer(TransferRequest request, String idempotencyKey) {
+        UUID from = request.fromWalletId();
+        UUID to = request.toWalletId();
+        String requestHash = sha256Hex(String.join("\n", TRANSFER_OPERATION, from.toString(), to.toString(),
+                request.amount().toString(), request.note() == null ? "" : request.note()));
+
+        return executeIdempotently(idempotencyKey, TRANSFER_OPERATION, requestHash, () -> {
+            TransferResponse response = moveMoney(from, to, request.amount());
+            return new Created<>(response.transferId(), response);
+        }, this::rebuildTransfer);
+    }
+
+    /**
+     * Claims the Idempotency-Key, runs {@code work} and stores its outcome in ONE database
+     * transaction, so a concurrent request with the same key waits and then replays the stored
+     * outcome: exactly one execution. Deterministic failures (wallet not found, insufficient
+     * balance, payment declined, ...) are stored and replayed too; retryable ones roll the claim
+     * back so the client can retry with the same key.
+     */
+    private <T> T executeIdempotently(String idempotencyKey, String operation, String requestHash,
+                                      Supplier<Created<T>> work, Function<UUID, T> rebuild) {
+        Outcome<T> outcome = transactionTemplate.execute(status -> {
+            if (!idempotencyRepository.tryClaim(idempotencyKey, operation, requestHash)) {
+                return replay(idempotencyKey, requestHash, rebuild);
             }
             try {
-                WalletTransaction entry = creditWallet(walletId, request);
-                idempotencyRepository.completeWithResource(idempotencyKey, entry.id());
-                return Outcome.success(toAddMoneyResponse(entry));
+                Created<T> created = work.get();
+                idempotencyRepository.completeWithResource(idempotencyKey, created.resourceId());
+                return Outcome.success(created.response());
             } catch (MiniWalletException e) {
                 if (e.isRetryable()) {
                     throw e; // rolls back the claim
@@ -106,6 +149,46 @@ public class DefaultTransactionService implements TransactionService {
                 .orElseThrow(() -> duplicateGatewayRef(request.gatewayRef()));
     }
 
+    private TransferResponse moveMoney(UUID from, UUID to, long amount) {
+        if (from.equals(to)) {
+            throw new SameWalletTransferException(ErrorMessage.SAME_WALLET_TRANSFER);
+        }
+        // Ascending id order, the same for every transfer, so two transfers can never wait on each other.
+        boolean fromExists = false;
+        boolean toExists = false;
+        for (UUID id : from.compareTo(to) < 0 ? List.of(from, to) : List.of(to, from)) {
+            boolean locked = walletRepository.lockForUpdate(id);
+            if (id.equals(from)) {
+                fromExists = locked;
+            } else {
+                toExists = locked;
+            }
+        }
+        if (!fromExists) {
+            throw new WalletNotFoundException(from);
+        }
+        if (!toExists) {
+            throw new WalletNotFoundException(to);
+        }
+
+        WalletTransaction fromLatest = transactionRepository.findLatestEntry(from).orElse(null);
+        WalletTransaction toLatest = transactionRepository.findLatestEntry(to).orElse(null);
+        long fromBalance = fromLatest == null ? 0 : fromLatest.balanceAfter();
+        long toBalance = toLatest == null ? 0 : toLatest.balanceAfter();
+        if (fromBalance < amount) {
+            throw new InsufficientBalanceException(ErrorMessage.INSUFFICIENT_BALANCE.formatted(from));
+        }
+
+        UUID transferId = UuidGenerator.v7();
+        WalletTransaction out = transactionRepository.appendTransferLeg(new WalletTransaction(
+                UuidGenerator.v7(), from, fromLatest == null ? 1 : fromLatest.entryNo() + 1,
+                TransactionType.TRANSFER_OUT, amount, fromBalance, fromBalance - amount, to, transferId, null, null));
+        transactionRepository.appendTransferLeg(new WalletTransaction(
+                UuidGenerator.v7(), to, toLatest == null ? 1 : toLatest.entryNo() + 1,
+                TransactionType.TRANSFER_IN, amount, toBalance, toBalance + amount, from, transferId, null, null));
+        return toTransferResponse(out);
+    }
+
     private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request) {
         if (payment.status() != PaymentVerification.Status.CAPTURED) {
             throw new PaymentDeclinedException(ErrorMessage.PAYMENT_DECLINED.formatted(
@@ -123,18 +206,26 @@ public class DefaultTransactionService implements TransactionService {
         return amount + " " + currency + " via " + network;
     }
 
-    private Outcome replay(String idempotencyKey, String requestHash) {
+    private <T> Outcome<T> replay(String idempotencyKey, String requestHash, Function<UUID, T> rebuild) {
         IdempotencyRecord record = idempotencyRepository.findByKey(idempotencyKey)
                 .orElseThrow(() -> new IllegalStateException("Claimed idempotency key vanished: " + idempotencyKey));
         if (!record.requestHash().equals(requestHash)) {
             throw new IdempotencyKeyReusedException(ErrorMessage.IDEMPOTENCY_KEY_REUSED);
         }
         if (record.resourceId() != null) {
-            WalletTransaction entry = transactionRepository.findById(record.resourceId())
-                    .orElseThrow(() -> new IllegalStateException("Missing ledger entry " + record.resourceId()));
-            return Outcome.success(toAddMoneyResponse(entry));
+            return Outcome.success(rebuild.apply(record.resourceId()));
         }
         return Outcome.failure(new ReplayedFailureException(record.errorCode(), record.errorMessage()));
+    }
+
+    private AddMoneyResponse rebuildAddMoney(UUID transactionId) {
+        return toAddMoneyResponse(transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new IllegalStateException("Missing ledger entry " + transactionId)));
+    }
+
+    private TransferResponse rebuildTransfer(UUID transferId) {
+        return toTransferResponse(transactionRepository.findTransferOut(transferId)
+                .orElseThrow(() -> new IllegalStateException("Missing transfer " + transferId)));
     }
 
     private static DuplicateGatewayRefException duplicateGatewayRef(UUID gatewayRef) {
@@ -155,17 +246,21 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
+    /** The resource a successful operation created (stored for replays) and the response built from it. */
+    private record Created<T>(UUID resourceId, T response) {
+    }
+
     /** Result of an idempotent operation, returned from the transaction so failures can be committed. */
-    private record Outcome(AddMoneyResponse response, MiniWalletException failure) {
-        static Outcome success(AddMoneyResponse response) {
-            return new Outcome(response, null);
+    private record Outcome<T>(T response, MiniWalletException failure) {
+        static <T> Outcome<T> success(T response) {
+            return new Outcome<>(response, null);
         }
 
-        static Outcome failure(MiniWalletException failure) {
-            return new Outcome(null, failure);
+        static <T> Outcome<T> failure(MiniWalletException failure) {
+            return new Outcome<>(null, failure);
         }
 
-        AddMoneyResponse getOrThrow() {
+        T getOrThrow() {
             if (failure != null) {
                 throw failure;
             }
@@ -173,25 +268,46 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    @Override
-    public TransferResponse transfer(TransferRequest request, String idempotencyKey) {
-        return null;
+    private static TransferResponse toTransferResponse(WalletTransaction out) {
+        return new TransferResponse(out.referenceId(), out.walletId(), out.counterpartyWalletId(), out.amount(),
+                TRANSFER_STATUS_COMPLETED, out.createdAt());
     }
 
+    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
+    @Transactional(readOnly = true)
     public TransactionPageResponse getTransactions(
-            String walletId,
-            String type,
+            UUID walletId,
+            TransactionType type,
             Instant from,
             Instant to,
             int page,
             int pageSize
     ) {
-        return null;
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new InvalidDateRangeException();
+        }
+        if (walletId != null && !walletRepository.existsById(walletId)) {
+            throw new WalletNotFoundException(walletId);
+        }
+        TransactionFilter filter = new TransactionFilter(walletId, type, from, to);
+        long totalItems = transactionRepository.count(filter);
+        List<TransactionItemResponse> items = transactionRepository
+                .search(filter, pageSize, (long) (page - 1) * pageSize).stream()
+                .map(e -> new TransactionItemResponse(e.id(), e.type(), e.amount(), e.balanceAfter(),
+                        e.counterpartyWalletId(), e.referenceId(), e.createdAt()))
+                .toList();
+        int totalPages = (int) ((totalItems + pageSize - 1) / pageSize);
+        return new TransactionPageResponse(items, page, pageSize, totalItems, totalPages);
     }
 
+    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
-    public TransactionDetailResponse getTransactionDetails(String transactionId) {
-        return null;
+    @Transactional(readOnly = true)
+    public TransactionDetailResponse getTransactionDetails(UUID transactionId) {
+        WalletTransaction e = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new TransactionNotFoundException(transactionId.toString()));
+        return new TransactionDetailResponse(e.id(), e.walletId(), e.type(), e.amount(), e.balanceAfter(),
+                e.counterpartyWalletId(), e.referenceId(), e.createdAt());
     }
 }
