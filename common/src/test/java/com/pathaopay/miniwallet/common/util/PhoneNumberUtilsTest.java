@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.common.util;
 
-import com.pathaopay.miniwallet.common.InvalidPhoneNumberException;
+import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;

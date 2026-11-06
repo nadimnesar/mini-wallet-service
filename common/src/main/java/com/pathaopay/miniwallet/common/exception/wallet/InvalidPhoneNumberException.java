@@ -1,7 +1,8 @@
-package com.pathaopay.miniwallet.common;
+package com.pathaopay.miniwallet.common.exception.wallet;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
+import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 
 public class InvalidPhoneNumberException extends MiniWalletException {
     public InvalidPhoneNumberException() {

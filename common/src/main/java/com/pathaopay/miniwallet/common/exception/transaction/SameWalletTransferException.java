@@ -1,6 +1,7 @@
-package com.pathaopay.miniwallet.common;
+package com.pathaopay.miniwallet.common.exception.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
+import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 
 public class SameWalletTransferException extends MiniWalletException {
     public SameWalletTransferException(String message) {

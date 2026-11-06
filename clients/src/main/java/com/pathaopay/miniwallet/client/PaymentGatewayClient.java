@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.client;
 
-import com.pathaopay.miniwallet.common.PaymentGatewayException;
-import com.pathaopay.miniwallet.common.PaymentNotFoundException;
+import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
+import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 
 /** Asks the card network's payment gateway what it knows about a payment. */

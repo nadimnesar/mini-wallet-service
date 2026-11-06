@@ -1,9 +1,9 @@
 package com.pathaopay.miniwallet.service.impl;
 
-import com.pathaopay.miniwallet.common.DuplicatePhoneException;
-import com.pathaopay.miniwallet.common.DuplicateWalletException;
-import com.pathaopay.miniwallet.common.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
+import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
+import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
+import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;

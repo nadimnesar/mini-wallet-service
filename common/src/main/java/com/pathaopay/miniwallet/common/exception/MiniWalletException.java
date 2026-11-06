@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.common;
+package com.pathaopay.miniwallet.common.exception;
 
 public abstract class MiniWalletException extends RuntimeException {
 

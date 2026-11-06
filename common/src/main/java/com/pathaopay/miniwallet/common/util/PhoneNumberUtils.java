@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.common.util;
 
-import com.pathaopay.miniwallet.common.InvalidPhoneNumberException;
 import com.pathaopay.miniwallet.common.constant.AppConstants.Phone;
+import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

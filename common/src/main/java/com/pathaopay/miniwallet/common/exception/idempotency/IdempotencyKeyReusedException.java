@@ -1,6 +1,7 @@
-package com.pathaopay.miniwallet.common;
+package com.pathaopay.miniwallet.common.exception.idempotency;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
+import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 
 public class IdempotencyKeyReusedException extends MiniWalletException {
     public IdempotencyKeyReusedException(String message) {

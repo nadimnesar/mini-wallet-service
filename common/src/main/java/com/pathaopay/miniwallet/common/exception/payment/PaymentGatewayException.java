@@ -1,6 +1,7 @@
-package com.pathaopay.miniwallet.common;
+package com.pathaopay.miniwallet.common.exception.payment;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
+import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 
 /** The gateway could not be reached or answered unexpectedly. Transient: the client may retry. */
 public class PaymentGatewayException extends MiniWalletException {

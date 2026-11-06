@@ -7,6 +7,7 @@ Guidance for Claude Code when working in this repository.
 - Maven multi-module Spring Boot 4 / Java 25 service: `common`, `models`, `repository`, `clients`, `services`, `middleware` (the only runnable module).
 - `docker compose up` (add `--build` after code changes) runs the whole stack: the PostgreSQL primary (write, `:5432`), the streaming read replica (`:5433`), and the app (`:8080`).
 - Module roles: `clients` holds every external-system client: the database (`DataSourceConfig`, Liquibase changelogs) and the payment gateway. `repository` holds all repositories: interfaces plus `jdbc/` implementations.
+- `common` layout: `constant/AppConstants` (all constants), `util/` (PhoneNumberUtils, UuidGenerator), `exception/` with the base `MiniWalletException` and one subpackage per domain (`wallet`, `payment`, `transaction`, `idempotency`). Put new exceptions in the matching subpackage.
 - Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 

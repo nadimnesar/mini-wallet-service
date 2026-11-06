@@ -3,7 +3,7 @@ package com.pathaopay.miniwallet.advice;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
 import com.pathaopay.miniwallet.common.constant.AppConstants.Headers;
-import com.pathaopay.miniwallet.common.MiniWalletException;
+import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 import com.pathaopay.miniwallet.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
