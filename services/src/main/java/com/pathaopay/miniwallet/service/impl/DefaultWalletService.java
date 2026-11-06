@@ -60,6 +60,6 @@ public class DefaultWalletService implements WalletService {
     }
 
     private static WalletResponse toResponse(Wallet wallet) {
-        return new WalletResponse(wallet.id(), wallet.userId(), wallet.currency(), wallet.balance(), wallet.createdAt());
+        return new WalletResponse(wallet.id(), wallet.userId(), wallet.phone(), wallet.currency(), wallet.balance(), wallet.createdAt());
     }
 }

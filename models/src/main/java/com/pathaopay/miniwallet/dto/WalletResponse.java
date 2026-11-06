@@ -12,6 +12,9 @@ public record WalletResponse(
         @JsonProperty("user_id")
         String userId,
 
+        @JsonProperty("phone")
+        String phone,
+
         @JsonProperty("currency")
         Currency currency,
 

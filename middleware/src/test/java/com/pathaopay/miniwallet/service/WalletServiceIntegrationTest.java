@@ -73,6 +73,7 @@ class WalletServiceIntegrationTest {
         assertEquals(7, response.walletId().version());
         assertEquals(2, response.walletId().variant());
         assertEquals("u_1001", response.userId());
+        assertEquals("01711000001", response.phone());
         assertEquals(Currency.BDT, response.currency());
         assertEquals(0, response.balance());
         assertEquals("01711000001", storedPhone(response.walletId()));
