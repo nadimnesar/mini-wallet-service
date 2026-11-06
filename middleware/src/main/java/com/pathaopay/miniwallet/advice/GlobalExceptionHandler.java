@@ -3,7 +3,7 @@ package com.pathaopay.miniwallet.advice;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorCodes;
 import com.pathaopay.miniwallet.common.constant.AppConstants.ErrorMessages;
 import com.pathaopay.miniwallet.common.constant.AppConstants.Headers;
-import com.pathaopay.miniwallet.common.*;
+import com.pathaopay.miniwallet.common.MiniWalletException;
 import com.pathaopay.miniwallet.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -20,10 +20,28 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.Map;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
+            Map.entry(ErrorCodes.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCodes.INVALID_PHONE_NUMBER, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCodes.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
+            Map.entry(ErrorCodes.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCodes.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCodes.DUPLICATE_WALLET, HttpStatus.CONFLICT),
+            Map.entry(ErrorCodes.DUPLICATE_PHONE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCodes.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),
+            Map.entry(ErrorCodes.INSUFFICIENT_BALANCE, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCodes.SAME_WALLET_TRANSFER, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCodes.IDEMPOTENCY_KEY_REUSED, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCodes.PAYMENT_NOT_FOUND, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCodes.PAYMENT_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCodes.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY));
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
@@ -73,64 +91,17 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(ErrorCodes.INVALID_ARGUMENT, ErrorMessages.INVALID_ARGUMENT_PREFIX + ex.getName()));
     }
 
-    @ExceptionHandler(WalletNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleWalletNotFound(WalletNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(TransactionNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTransactionNotFound(TransactionNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(DuplicateWalletException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateWallet(DuplicateWalletException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(DuplicatePhoneException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicatePhone(DuplicatePhoneException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(DuplicateGatewayRefException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateGatewayRef(DuplicateGatewayRefException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(InsufficientBalanceException.class)
-    public ResponseEntity<ErrorResponse> handleInsufficientBalance(InsufficientBalanceException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(SameWalletTransferException.class)
-    public ResponseEntity<ErrorResponse> handleSameWalletTransfer(SameWalletTransferException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(IdempotencyKeyReusedException.class)
-    public ResponseEntity<ErrorResponse> handleIdempotencyKeyReused(IdempotencyKeyReusedException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
-    @ExceptionHandler(InvalidAmountException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidAmount(InvalidAmountException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
-    }
-
+    /**
+     * Every domain error is mapped by its error code, so a failure replayed from an Idempotency-Key
+     * (which only stores code and message) gets exactly the same status as the original.
+     */
     @ExceptionHandler(MiniWalletException.class)
     public ResponseEntity<ErrorResponse> handleMiniWalletException(MiniWalletException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
+        HttpStatus status = STATUS_BY_ERROR_CODE.getOrDefault(ex.getErrorCode(), HttpStatus.BAD_REQUEST);
+        if (ex.isRetryable()) {
+            log.warn("{}: {}", ex.getErrorCode(), ex.getMessage(), ex.getCause());
+        }
+        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
