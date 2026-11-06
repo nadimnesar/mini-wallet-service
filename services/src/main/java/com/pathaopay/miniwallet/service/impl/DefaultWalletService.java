@@ -48,7 +48,9 @@ public class DefaultWalletService implements WalletService {
         return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
     }
 
-    /** Served by the read replica; the balance may lag the primary by the replication delay. */
+    /**
+     * Served by the read replica; the balance may lag the primary by the replication delay.
+     */
     @Override
     @Transactional(readOnly = true)
     public WalletResponse getWallet(UUID walletId) {

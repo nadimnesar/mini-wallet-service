@@ -8,11 +8,9 @@ import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -34,17 +32,17 @@ public class WalletController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/{walletId}")
+    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") UUID walletId) {
+        WalletResponse response = walletService.getWallet(walletId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/add-money")
     public ResponseEntity<AddMoneyResponse> addMoney(
             @RequestHeader(name = "Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
             @RequestBody @Valid AddMoneyRequest request) {
         AddMoneyResponse response = transactionService.addMoney(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @GetMapping("/{walletId}")
-    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") UUID walletId) {
-        WalletResponse response = walletService.getWallet(walletId);
-        return ResponseEntity.ok(response);
     }
 }
