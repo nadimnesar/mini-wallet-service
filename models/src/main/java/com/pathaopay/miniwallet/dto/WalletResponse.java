@@ -1,6 +1,7 @@
 package com.pathaopay.miniwallet.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.pathaopay.miniwallet.model.Currency;
 import java.time.Instant;
 
 public record WalletResponse(
@@ -11,7 +12,7 @@ public record WalletResponse(
         String userId,
 
         @JsonProperty("currency")
-        String currency,
+        Currency currency,
 
         @JsonProperty("balance")
         long balance,
