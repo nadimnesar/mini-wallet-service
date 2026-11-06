@@ -29,6 +29,7 @@ public final class ErrorConstants {
         public static final String INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE";
         public static final String SAME_WALLET_TRANSFER = "SAME_WALLET_TRANSFER";
         public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
+        public static final String INVALID_DATE_RANGE = "INVALID_DATE_RANGE";
         public static final String NOT_FOUND = "NOT_FOUND";
         public static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
         public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
@@ -51,6 +52,10 @@ public final class ErrorConstants {
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
+        /** Format with the sender wallet id. */
+        public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer.";
+        public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
+        public static final String INVALID_DATE_RANGE = "from must not be after to";
         public static final String DUPLICATE_GATEWAY_REF_PREFIX = "This gateway_ref has already been used: ";
         public static final String IDEMPOTENCY_KEY_REUSED =
                 AppConstants.IDEMPOTENCY_KEY_HEADER + " has already been used with a different request";
