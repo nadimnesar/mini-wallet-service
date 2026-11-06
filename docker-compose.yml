@@ -47,6 +47,25 @@ services:
       postgres-primary:
         condition: service_healthy
 
+  # Spring Boot application: writes go to the primary, readOnly transactions to the replica.
+  app:
+    build: .
+    image: mini-wallet-service:latest
+    container_name: miniwallet-app
+    environment:
+      DB_WRITE_URL: jdbc:postgresql://postgres-primary:5432/${POSTGRES_DB:-miniwallet}
+      DB_READ_URL: jdbc:postgresql://postgres-replica:5432/${POSTGRES_DB:-miniwallet}
+      DB_USERNAME: ${POSTGRES_USER:-miniwallet}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-miniwallet}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres-primary-data:
   postgres-replica-data:
