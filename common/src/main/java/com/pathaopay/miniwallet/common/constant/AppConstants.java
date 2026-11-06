@@ -128,6 +128,8 @@ public final class AppConstants {
         /** Format with the header name. */
         public static final String MISSING_HEADER = "Required header '%s' is missing";
         public static final String MALFORMED_JSON = "Malformed or unreadable JSON request body";
+        /** Format with the JSON field path, e.g. user_id. */
+        public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";

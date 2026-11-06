@@ -19,8 +19,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -81,8 +83,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        // A value Jackson cannot convert (e.g. a non-UUID user_id or an unknown payment_method) names its field.
+        String message = ex.getMostSpecificCause() instanceof MismatchedInputException mismatch
+                && !mismatch.getPath().isEmpty()
+                ? ErrorMessages.INVALID_FIELD_VALUE.formatted(fieldPath(mismatch))
+                : ErrorMessages.MALFORMED_JSON;
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCodes.INVALID_PAYLOAD, ErrorMessages.MALFORMED_JSON));
+                .body(ErrorResponse.of(ErrorCodes.INVALID_PAYLOAD, message));
+    }
+
+    private static String fieldPath(MismatchedInputException ex) {
+        return ex.getPath().stream()
+                .map(ref -> ref.getPropertyName() != null ? ref.getPropertyName() : "[" + ref.getIndex() + "]")
+                .collect(Collectors.joining("."));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
