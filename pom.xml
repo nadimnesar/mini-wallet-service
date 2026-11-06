@@ -17,6 +17,7 @@
 
 	<properties>
 		<java.version>25</java.version>
+		<java-uuid-generator.version>5.2.0</java-uuid-generator.version>
 	</properties>
 
 	<modules>
@@ -30,6 +31,11 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>com.fasterxml.uuid</groupId>
+				<artifactId>java-uuid-generator</artifactId>
+				<version>${java-uuid-generator.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.pathaopay</groupId>
 				<artifactId>common</artifactId>
