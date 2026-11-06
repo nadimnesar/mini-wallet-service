@@ -4,21 +4,12 @@ import com.pathaopay.miniwallet.common.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.InvalidPhoneNumberException;
 import com.pathaopay.miniwallet.common.WalletNotFoundException;
-import com.pathaopay.miniwallet.common.constant.AppConstants.Database;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.WalletResponse;
 import com.pathaopay.miniwallet.model.Currency;
-import org.junit.jupiter.api.BeforeEach;
+import com.pathaopay.miniwallet.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,37 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Runs the real wallet service, JDBC repository and Liquibase schema against a real PostgreSQL
- * started by Testcontainers (Docker must be running). Both the write and read pools point at the
- * same container, so read-only routing is exercised without needing a replica.
- */
-@SpringBootTest
-@Testcontainers
-class WalletServiceIntegrationTest {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18-alpine");
-
-    @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
-        for (String prefix : List.of(Database.WRITE_PROPERTIES_PREFIX, Database.READ_PROPERTIES_PREFIX)) {
-            registry.add(prefix + ".jdbc-url", POSTGRES::getJdbcUrl);
-            registry.add(prefix + ".username", POSTGRES::getUsername);
-            registry.add(prefix + ".password", POSTGRES::getPassword);
-        }
-    }
+/** Runs the real wallet service, JDBC repository and Liquibase schema against real PostgreSQL. */
+class WalletServiceIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private WalletService walletService;
-
-    @Autowired
-    private JdbcClient jdbcClient;
-
-    @BeforeEach
-    void cleanDatabase() {
-        jdbcClient.sql("TRUNCATE TABLE wallets").update();
-    }
 
     @Test
     void createsZeroBalanceBdtWalletAndStoresNormalizedPhone() {
@@ -120,6 +85,23 @@ class WalletServiceIntegrationTest {
         WalletResponse created = walletService.createWallet(new CreateWalletRequest("u_1001", "1711000001"));
 
         assertEquals(created, walletService.getWallet(created.walletId()));
+    }
+
+    @Test
+    void walletBalanceIsTheLatestLedgerBalance() {
+        WalletResponse wallet = walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+        UUID id = wallet.walletId();
+        jdbcClient.sql("""
+                        INSERT INTO wallet_transactions
+                            (id, wallet_id, entry_no, type, amount, balance_before, balance_after, reference_id)
+                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, 'GW-1'),
+                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, 'GW-2')
+                        """)
+                .param("t1", UUID.randomUUID()).param("t2", UUID.randomUUID()).param("w", id)
+                .update();
+
+        assertEquals(0, wallet.balance());
+        assertEquals(70000, walletService.getWallet(id).balance());
     }
 
     @Test
@@ -185,16 +167,6 @@ class WalletServiceIntegrationTest {
         }
         assertEquals(1, created);
         assertEquals(1, walletCount());
-    }
-
-    @Test
-    void databaseRejectsNegativeBalance() {
-        WalletResponse wallet = walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
-
-        assertThrows(DataIntegrityViolationException.class, () -> jdbcClient
-                .sql("UPDATE wallets SET balance = -1 WHERE id = :id")
-                .param("id", wallet.walletId())
-                .update());
     }
 
     private String storedPhone(UUID walletId) {

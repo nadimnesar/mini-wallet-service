@@ -10,6 +10,19 @@ Guidance for Claude Code when working in this repository.
 - Read/write routing lives in `repository` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 
+## Money model (ledger is the source of truth)
+
+- `wallets` has **no balance column**. A wallet's balance is the `balance_after` of its latest `wallet_transactions` entry (by `entry_no`), or 0 if it has none. Never add a mutable balance column.
+- `wallet_transactions` is an append-only chain per wallet. Postgres enforces it (see `002-create-wallet-transactions-table.sql`):
+  - `entry_no` runs 1, 2, 3… with no gaps or forks
+  - each entry's `balance_before` must equal the previous entry's `balance_after`
+  - entry 1 starts from 0
+  - `balance_after >= 0`
+  - the arithmetic matches the type
+  - amounts are 100–2,500,000 poisha
+  - a gateway_ref credits only once
+- To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. A transfer writes both legs (`TRANSFER_OUT` + `TRANSFER_IN`) with the same `reference_id`. Never UPDATE or DELETE ledger rows.
+
 ## Database schema (Liquibase)
 
 - Changelogs live in `repository/src/main/resources/db/changelog/`, one formatted-SQL file per table (`sql/00N-create-<table>-table.sql`).

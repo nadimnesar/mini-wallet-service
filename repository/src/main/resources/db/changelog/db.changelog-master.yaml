@@ -2,3 +2,6 @@ databaseChangeLog:
   - include:
       file: sql/001-create-wallets-table.sql
       relativeToChangelogFile: true
+  - include:
+      file: sql/002-create-wallet-transactions-table.sql
+      relativeToChangelogFile: true
