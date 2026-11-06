@@ -1,19 +1,18 @@
 package com.pathaopay.miniwallet.dto;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants.Phone;
+import com.pathaopay.miniwallet.common.constant.AppConstants.Validation;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 public record CreateWalletRequest(
-        @NotBlank(message = "user_id is required")
-        @Size(min = 1, max = 64, message = "user_id must be between 1 and 64 characters")
-        @Pattern(regexp = "^[a-zA-Z0-9_.-]+$", message = "user_id must contain only alphanumeric characters, underscores, dashes, or dots")
+        @NotBlank(message = Validation.USER_ID_REQUIRED)
         @JsonProperty("user_id")
         String userId,
 
-        @NotBlank(message = "phone is required")
-        @Pattern(regexp = "^01\\d{9}$", message = "phone must match the pattern ^01\\d{9}$")
+        @NotBlank(message = Validation.PHONE_REQUIRED)
+        @Pattern(regexp = Phone.ACCEPTED_PATTERN, message = Validation.PHONE_FORMAT)
         @JsonProperty("phone")
         String phone
 ) {}
