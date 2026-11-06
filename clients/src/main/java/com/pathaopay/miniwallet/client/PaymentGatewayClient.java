@@ -4,6 +4,8 @@ import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 
+import java.util.UUID;
+
 /** Asks the card network's payment gateway what it knows about a payment. */
 public interface PaymentGatewayClient {
 
@@ -14,5 +16,5 @@ public interface PaymentGatewayClient {
      * @throws PaymentNotFoundException if the gateway has no such payment
      * @throws PaymentGatewayException  if the gateway is unreachable, times out or answers unexpectedly
      */
-    PaymentVerification verify(PaymentMethod method, String gatewayRef, long amount);
+    PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount);
 }

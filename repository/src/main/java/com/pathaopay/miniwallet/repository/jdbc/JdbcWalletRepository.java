@@ -46,7 +46,7 @@ public class JdbcWalletRepository implements WalletRepository {
 
     private static final RowMapper<Wallet> WALLET_ROW_MAPPER = (rs, rowNum) -> new Wallet(
             rs.getObject("id", UUID.class),
-            rs.getString("user_id"),
+            rs.getObject("user_id", UUID.class),
             rs.getString("phone"),
             Currency.valueOf(rs.getString("currency")),
             rs.getLong("balance"),
@@ -60,7 +60,7 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> insertIfAbsent(UUID walletId, String userId, String phone, Currency currency) {
+    public Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency) {
         return jdbcClient.sql(INSERT_IF_ABSENT)
                 .param("id", walletId)
                 .param("userId", userId)
@@ -71,7 +71,7 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public boolean existsByUserId(String userId) {
+    public boolean existsByUserId(UUID userId) {
         return jdbcClient.sql(EXISTS_BY_USER_ID).param("userId", userId).query(Boolean.class).single();
     }
 

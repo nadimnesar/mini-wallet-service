@@ -4,7 +4,7 @@
 CREATE TABLE wallets
 (
     id         UUID        NOT NULL,
-    user_id    TEXT        NOT NULL,
+    user_id    UUID        NOT NULL,
     phone      VARCHAR(11) NOT NULL,
     currency   CHAR(3)     NOT NULL DEFAULT 'BDT',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -21,7 +21,7 @@ public record AddMoneyResponse(
         long balance,
 
         @JsonProperty("gateway_ref")
-        String gatewayRef,
+        UUID gatewayRef,
 
         @JsonProperty("payment_method")
         PaymentMethod paymentMethod,

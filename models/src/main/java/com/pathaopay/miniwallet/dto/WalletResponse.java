@@ -10,7 +10,7 @@ public record WalletResponse(
         UUID walletId,
 
         @JsonProperty("user_id")
-        String userId,
+        UUID userId,
 
         @JsonProperty("phone")
         String phone,

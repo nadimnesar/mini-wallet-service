@@ -11,7 +11,7 @@ public interface TransactionRepository {
     /** The wallet's newest entry (highest entry_no), or empty for a wallet without entries. */
     Optional<WalletTransaction> findLatestEntry(UUID walletId);
 
-    boolean existsAddMoneyWithGatewayRef(String gatewayRef);
+    boolean existsAddMoneyWithGatewayRef(UUID gatewayRef);
 
     /**
      * Appends an ADD_MONEY entry. The caller must hold the wallet's row lock.

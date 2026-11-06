@@ -68,7 +68,7 @@ public class DefaultTransactionService implements TransactionService {
     @Override
     public AddMoneyResponse addMoney(UUID walletId, AddMoneyRequest request, String idempotencyKey) {
         String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, walletId.toString(),
-                request.amount().toString(), request.gatewayRef(), request.paymentMethod().name()));
+                request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name()));
 
         Outcome outcome = transactionTemplate.execute(status -> {
             if (!idempotencyRepository.tryClaim(idempotencyKey, ADD_MONEY_OPERATION, requestHash)) {
@@ -146,7 +146,7 @@ public class DefaultTransactionService implements TransactionService {
         return Outcome.failure(new ReplayedFailureException(record.errorCode(), record.errorMessage()));
     }
 
-    private static DuplicateGatewayRefException duplicateGatewayRef(String gatewayRef) {
+    private static DuplicateGatewayRefException duplicateGatewayRef(UUID gatewayRef) {
         return new DuplicateGatewayRefException(ErrorMessages.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
     }
 

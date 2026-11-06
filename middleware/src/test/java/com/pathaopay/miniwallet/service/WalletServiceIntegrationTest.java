@@ -11,6 +11,7 @@ import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -33,11 +34,11 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void createsZeroBalanceBdtWalletAndStoresNormalizedPhone() {
-        WalletResponse response = walletService.createWallet(new CreateWalletRequest("u_1001", "+8801711000001"));
+        WalletResponse response = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "+8801711000001"));
 
         assertEquals(7, response.walletId().version());
         assertEquals(2, response.walletId().variant());
-        assertEquals("u_1001", response.userId());
+        assertEquals(user("u_1001"), response.userId());
         assertEquals("01711000001", response.phone());
         assertEquals(Currency.BDT, response.currency());
         assertEquals(0, response.balance());
@@ -46,20 +47,20 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void rejectsSecondWalletForSameUser() {
-        walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+        walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
 
         assertThrows(DuplicateWalletException.class,
-                () -> walletService.createWallet(new CreateWalletRequest("u_1001", "01811000002")));
+                () -> walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01811000002")));
         assertEquals(1, walletCount());
     }
 
     @Test
     void rejectsSamePhoneForAnotherUserInAnyFormat() {
-        walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+        walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
 
         for (String samePhone : List.of("01711000001", "1711000001", "8801711000001", "+8801711000001")) {
             DuplicatePhoneException ex = assertThrows(DuplicatePhoneException.class,
-                    () -> walletService.createWallet(new CreateWalletRequest("u_other", samePhone)));
+                    () -> walletService.createWallet(new CreateWalletRequest(user("u_other"), samePhone)));
             assertEquals("A wallet already exists for phone: 01711000001", ex.getMessage());
         }
         assertEquals(1, walletCount());
@@ -67,36 +68,36 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void sameUserAndSamePhoneReportsDuplicateWallet() {
-        walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+        walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
 
         assertThrows(DuplicateWalletException.class,
-                () -> walletService.createWallet(new CreateWalletRequest("u_1001", "+8801711000001")));
+                () -> walletService.createWallet(new CreateWalletRequest(user("u_1001"), "+8801711000001")));
     }
 
     @Test
     void rejectsInvalidPhoneWithoutWritingAnything() {
         assertThrows(InvalidPhoneNumberException.class,
-                () -> walletService.createWallet(new CreateWalletRequest("u_1001", "12345")));
+                () -> walletService.createWallet(new CreateWalletRequest(user("u_1001"), "12345")));
         assertEquals(0, walletCount());
     }
 
     @Test
     void getsExistingWallet() {
-        WalletResponse created = walletService.createWallet(new CreateWalletRequest("u_1001", "1711000001"));
+        WalletResponse created = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "1711000001"));
 
         assertEquals(created, walletService.getWallet(created.walletId()));
     }
 
     @Test
     void walletBalanceIsTheLatestLedgerBalance() {
-        WalletResponse wallet = walletService.createWallet(new CreateWalletRequest("u_1001", "01711000001"));
+        WalletResponse wallet = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
         UUID id = wallet.walletId();
         jdbcClient.sql("""
                         INSERT INTO wallet_transactions
                             (id, wallet_id, entry_no, type, amount, balance_before, balance_after, reference_id,
                              payment_method)
-                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, 'GW-1', 'VISA'),
-                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, 'GW-2', 'MASTERCARD')
+                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, gen_random_uuid(), 'VISA'),
+                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, gen_random_uuid(), 'MASTERCARD')
                         """)
                 .param("t1", UUID.randomUUID()).param("t2", UUID.randomUUID()).param("w", id)
                 .update();
@@ -119,7 +120,7 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
             for (int i = 0; i < attempts; i++) {
                 results.add(executor.submit(() -> {
                     start.await();
-                    return walletService.createWallet(new CreateWalletRequest("u_race", "01911000009"));
+                    return walletService.createWallet(new CreateWalletRequest(user("u_race"), "01911000009"));
                 }));
             }
             start.countDown();
@@ -148,7 +149,7 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
         List<Future<WalletResponse>> results = new ArrayList<>();
         try (ExecutorService executor = Executors.newFixedThreadPool(attempts)) {
             for (int i = 0; i < attempts; i++) {
-                String userId = "u_phone_race_" + i;
+                UUID userId = user("u_phone_race_" + i);
                 results.add(executor.submit(() -> {
                     start.await();
                     return walletService.createWallet(new CreateWalletRequest(userId, "+8801911000009"));
@@ -179,5 +180,10 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     private long walletCount() {
         return jdbcClient.sql("SELECT count(*) FROM wallets").query(Long.class).single();
+    }
+
+    /** Deterministic user_id (a UUID) for a readable test name. */
+    private static UUID user(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
     }
 }

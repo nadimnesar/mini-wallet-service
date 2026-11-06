@@ -14,9 +14,9 @@ public interface WalletRepository {
      *
      * @return the created wallet, or empty if the user or the phone already has a wallet
      */
-    Optional<Wallet> insertIfAbsent(UUID walletId, String userId, String phone, Currency currency);
+    Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency);
 
-    boolean existsByUserId(String userId);
+    boolean existsByUserId(UUID userId);
 
     boolean existsByPhone(String phone);
 

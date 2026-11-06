@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.http.HttpClient;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Calls the card network's gateway over HTTP: {@code POST {base-url}/{visa|mastercard}/v1/payments/verify}
@@ -47,7 +48,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     @Override
-    public PaymentVerification verify(PaymentMethod method, String gatewayRef, long amount) {
+    public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount) {
         String network = method.name().toLowerCase(Locale.ROOT);
         VerifyResponse response;
         try {
@@ -74,13 +75,13 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     private record VerifyRequest(
-            @JsonProperty("gateway_ref") String gatewayRef,
+            @JsonProperty("gateway_ref") UUID gatewayRef,
             @JsonProperty("amount") long amount,
             @JsonProperty("currency") String currency) {
     }
 
     private record VerifyResponse(
-            @JsonProperty("gateway_ref") String gatewayRef,
+            @JsonProperty("gateway_ref") UUID gatewayRef,
             @JsonProperty("status") PaymentVerification.Status status,
             @JsonProperty("amount") Long amount,
             @JsonProperty("currency") String currency,

@@ -43,11 +43,9 @@ public final class AppConstants {
     public static final class Validation {
         public static final int ID_MIN_LENGTH = 1;
         public static final int ID_MAX_LENGTH = 64;
-        public static final int GATEWAY_REF_MAX_LENGTH = 128;
         public static final int NOTE_MAX_LENGTH = 255;
 
         public static final String ID_PATTERN = "^[a-zA-Z0-9_.-]+$";
-        public static final String GATEWAY_REF_PATTERN = "^[a-zA-Z0-9_-]+$";
 
         private static final String ID_CHARS = " must contain only alphanumeric characters, underscores, dashes, or dots";
         private static final String ID_LENGTH = " must be between " + ID_MIN_LENGTH + " and " + ID_MAX_LENGTH + " characters";
@@ -71,10 +69,6 @@ public final class AppConstants {
         public static final String TO_WALLET_ID_PATTERN = "to_wallet_id" + ID_CHARS;
 
         public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
-        public static final String GATEWAY_REF_SIZE =
-                "gateway_ref must be between " + ID_MIN_LENGTH + " and " + GATEWAY_REF_MAX_LENGTH + " characters";
-        public static final String GATEWAY_REF_PATTERN_MESSAGE =
-                "gateway_ref must contain only alphanumeric characters, underscores, or hyphens";
 
         public static final String AMOUNT_REQUIRED = "amount is required";
         public static final String AMOUNT_MIN = "amount must be at least " + Money.MIN_AMOUNT_POISHA

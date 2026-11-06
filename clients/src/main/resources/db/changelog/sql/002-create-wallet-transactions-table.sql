@@ -12,7 +12,7 @@ CREATE TABLE wallet_transactions
     balance_before         BIGINT      NOT NULL,
     balance_after          BIGINT      NOT NULL,
     counterparty_wallet_id UUID,
-    reference_id           TEXT        NOT NULL,
+    reference_id           UUID        NOT NULL,
     payment_method         VARCHAR(16),
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT pk_wallet_transactions PRIMARY KEY (id),

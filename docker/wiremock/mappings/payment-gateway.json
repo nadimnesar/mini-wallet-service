@@ -21,32 +21,32 @@
       "response": { "status": 401, "jsonBody": { "error": "INVALID_API_KEY" }, "headers": { "Content-Type": "application/json" } }
     },
     {
-      "name": "gateway_ref containing NOTFOUND: unknown payment",
+      "name": "gateway_ref 00000404-...: unknown payment",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "NOTFOUND" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000404-.*" } } ]
       },
       "response": { "status": 404, "jsonBody": { "error": "PAYMENT_NOT_FOUND" }, "headers": { "Content-Type": "application/json" } }
     },
     {
-      "name": "gateway_ref containing ERROR: gateway failure",
+      "name": "gateway_ref 00000500-...: gateway failure",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "ERROR" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000500-.*" } } ]
       },
       "response": { "status": 500, "jsonBody": { "error": "INTERNAL_ERROR" }, "headers": { "Content-Type": "application/json" } }
     },
     {
-      "name": "gateway_ref containing TIMEOUT: answers after 10 seconds",
+      "name": "gateway_ref 00000504-...: answers after 10 seconds",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "TIMEOUT" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000504-.*" } } ]
       },
       "response": {
         "status": 200,
@@ -57,12 +57,12 @@
       }
     },
     {
-      "name": "gateway_ref containing DECLINED: card declined",
+      "name": "gateway_ref 00000402-...: card declined",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "DECLINED" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000402-.*" } } ]
       },
       "response": {
         "status": 200,
@@ -72,12 +72,12 @@
       }
     },
     {
-      "name": "gateway_ref containing PENDING: not captured yet",
+      "name": "gateway_ref 00000202-...: not captured yet",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "PENDING" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000202-.*" } } ]
       },
       "response": {
         "status": 200,
@@ -87,12 +87,12 @@
       }
     },
     {
-      "name": "gateway_ref containing MISMATCH: captured for a different amount",
+      "name": "gateway_ref 00000422-...: captured for a different amount",
       "priority": 2,
       "request": {
         "method": "POST",
         "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
-        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "contains": "MISMATCH" } } ]
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000422-.*" } } ]
       },
       "response": {
         "status": 200,

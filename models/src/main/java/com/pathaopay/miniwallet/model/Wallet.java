@@ -9,7 +9,7 @@ import java.util.UUID;
  */
 public record Wallet(
         UUID id,
-        String userId,
+        UUID userId,
         String phone,
         Currency currency,
         long balance,

@@ -52,7 +52,7 @@ public class JdbcTransactionRepository implements TransactionRepository {
             rs.getLong("balance_before"),
             rs.getLong("balance_after"),
             rs.getObject("counterparty_wallet_id", UUID.class),
-            rs.getString("reference_id"),
+            rs.getObject("reference_id", UUID.class),
             rs.getString("payment_method") == null ? null : PaymentMethod.valueOf(rs.getString("payment_method")),
             rs.getObject("created_at", OffsetDateTime.class).toInstant());
 
@@ -68,7 +68,7 @@ public class JdbcTransactionRepository implements TransactionRepository {
     }
 
     @Override
-    public boolean existsAddMoneyWithGatewayRef(String gatewayRef) {
+    public boolean existsAddMoneyWithGatewayRef(UUID gatewayRef) {
         return jdbcClient.sql(EXISTS_ADD_MONEY_WITH_GATEWAY_REF).param("ref", gatewayRef).query(Boolean.class).single();
     }
 

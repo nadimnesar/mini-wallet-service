@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,8 +29,8 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void createWallets() {
-        alice = walletService.createWallet(new CreateWalletRequest("u_alice", "01711000001")).walletId();
-        bob = walletService.createWallet(new CreateWalletRequest("u_bob", "01811000002")).walletId();
+        alice = walletService.createWallet(new CreateWalletRequest(user("u_alice"), "01711000001")).walletId();
+        bob = walletService.createWallet(new CreateWalletRequest(user("u_bob"), "01811000002")).walletId();
     }
 
     @Test
@@ -114,7 +115,7 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         assertRejected(() -> jdbcClient.sql("""
                         INSERT INTO wallet_transactions (id, wallet_id, entry_no, type, amount, balance_before,
                                                          balance_after, reference_id)
-                        VALUES (:id, :w, 1, 'ADD_MONEY', 5000, 0, 5000, 'GW-1')""")
+                        VALUES (:id, :w, 1, 'ADD_MONEY', 5000, 0, 5000, gen_random_uuid())""")
                 .param("id", UUID.randomUUID()).param("w", alice)
                 .update());
     }
@@ -146,7 +147,7 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
                 .param("before", before)
                 .param("after", after)
                 .param("counterparty", counterparty, java.sql.Types.OTHER)
-                .param("ref", referenceId)
+                .param("ref", UUID.nameUUIDFromBytes(referenceId.getBytes(StandardCharsets.UTF_8)))
                 .param("paymentMethod", "ADD_MONEY".equals(type) ? "VISA" : null, java.sql.Types.VARCHAR)
                 .update();
     }
@@ -160,5 +161,10 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     private static void assertRejected(Runnable statement) {
         assertThrows(DataIntegrityViolationException.class, statement::run);
+    }
+
+    /** Deterministic user_id (a UUID) for a readable test name. */
+    private static UUID user(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
     }
 }

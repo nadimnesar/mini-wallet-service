@@ -4,12 +4,15 @@ import com.pathaopay.miniwallet.common.constant.AppConstants.Phone;
 import com.pathaopay.miniwallet.common.constant.AppConstants.Validation;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+import java.util.UUID;
+
 public record CreateWalletRequest(
-        @NotBlank(message = Validation.USER_ID_REQUIRED)
+        @NotNull(message = Validation.USER_ID_REQUIRED)
         @JsonProperty("user_id")
-        String userId,
+        UUID userId,
 
         @NotBlank(message = Validation.PHONE_REQUIRED)
         @Pattern(regexp = Phone.ACCEPTED_PATTERN, message = Validation.PHONE_FORMAT)

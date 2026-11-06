@@ -39,7 +39,7 @@ public class DefaultWalletService implements WalletService {
      * The insert was skipped because a unique constraint matched. Runs in the same read-write
      * transaction on the primary, so the conflicting (committed) wallet is visible here.
      */
-    private RuntimeException conflictFor(String userId, String phone) {
+    private RuntimeException conflictFor(UUID userId, String phone) {
         if (walletRepository.existsByUserId(userId)) {
             return new DuplicateWalletException(ErrorMessages.DUPLICATE_WALLET_PREFIX + userId);
         }

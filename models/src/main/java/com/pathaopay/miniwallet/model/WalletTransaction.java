@@ -17,7 +17,7 @@ public record WalletTransaction(
         long balanceBefore,
         long balanceAfter,
         UUID counterpartyWalletId,
-        String referenceId,
+        UUID referenceId,
         PaymentMethod paymentMethod,
         Instant createdAt
 ) {}
