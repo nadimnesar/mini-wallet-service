@@ -16,8 +16,6 @@ public final class AppConstants {
     public static final long POISHA_PER_BDT = 100;
     public static final long MIN_AMOUNT_POISHA = 100;
     public static final long MAX_AMOUNT_POISHA = 2_500_000;
-    /** Fee charged to the sender on top of every transfer: 5 BDT. */
-    public static final long TRANSFER_FEE_POISHA = 5 * POISHA_PER_BDT;
     /** Owner (user_id) shared by every system account; no customer wallet can use it. Seeded by Liquibase. */
     public static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000002");
     /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */

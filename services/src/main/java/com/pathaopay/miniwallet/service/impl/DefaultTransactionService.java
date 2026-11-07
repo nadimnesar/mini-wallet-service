@@ -28,6 +28,7 @@ import com.pathaopay.miniwallet.model.EntryType;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.LedgerEntry;
 import com.pathaopay.miniwallet.model.WalletType;
+import com.pathaopay.miniwallet.repository.FeeRepository;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
 import com.pathaopay.miniwallet.repository.WalletRepository;
@@ -63,6 +64,7 @@ public class DefaultTransactionService implements TransactionService {
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
+    private final FeeRepository feeRepository;
     private final IdempotencyRepository idempotencyRepository;
     private final PaymentGatewayClient paymentGatewayClient;
     private final TransactionTemplate transactionTemplate;
@@ -188,7 +190,8 @@ public class DefaultTransactionService implements TransactionService {
         Map<UUID, Chain> chains = lockAndLoadChains(new TreeSet<>(List.of(senderWallet.id(), receiverWallet.id(), revenue)));
         Chain sender = chains.get(senderWallet.id());
         Chain receiver = chains.get(receiverWallet.id());
-        long fee = AppConstants.TRANSFER_FEE_POISHA;
+        long fee = feeRepository.findAmount(TransactionType.TRANSFER)
+                .orElseThrow(() -> new IllegalStateException("No transfer fee configured in the fees table"));
         if (sender.balance < amount + fee) {
             throw new InsufficientBalanceException(ErrorMessage.INSUFFICIENT_BALANCE.formatted(from));
         }
@@ -200,7 +203,7 @@ public class DefaultTransactionService implements TransactionService {
         sender.append(transactionRepository, EntryType.FEE_OUT, fee, revenue, id);
         receiver.append(transactionRepository, EntryType.TRANSFER_IN, amount, senderWallet.id(), id);
         chains.get(revenue).append(transactionRepository, EntryType.FEE_IN, fee, senderWallet.id(), id);
-        return toTransferResponse(transaction, out, from, to);
+        return toTransferResponse(transaction, out, fee, from, to);
     }
 
     /**
@@ -298,7 +301,8 @@ public class DefaultTransactionService implements TransactionService {
 
     private TransferResponse rebuildTransfer(UUID transferId) {
         LedgerEntry out = requireEntry(transferId, EntryType.TRANSFER_OUT);
-        return toTransferResponse(requireTransaction(transferId), out, phoneOf(out.walletId()),
+        long fee = requireEntry(transferId, EntryType.FEE_OUT).amount();
+        return toTransferResponse(requireTransaction(transferId), out, fee, phoneOf(out.walletId()),
                 phoneOf(out.counterpartyWalletId()));
     }
 
@@ -357,11 +361,11 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static TransferResponse toTransferResponse(LedgerTransaction transaction, LedgerEntry out, String from,
-                                                         String to) {
+    private static TransferResponse toTransferResponse(LedgerTransaction transaction, LedgerEntry out, long fee,
+                                                         String from, String to) {
         return new TransferResponse(transaction.id(), out.walletId(), from, out.counterpartyWalletId(), to,
                 transaction.amount(),
-                AppConstants.TRANSFER_FEE_POISHA, transaction.note(), TRANSFER_STATUS_COMPLETED, transaction.createdAt());
+                fee, transaction.note(), TRANSFER_STATUS_COMPLETED, transaction.createdAt());
     }
 
     private static TransactionItemResponse toItem(LedgerEntryView view) {

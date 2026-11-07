@@ -1,6 +1,7 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.dto.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
@@ -93,6 +94,41 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(39500, balance(alice));
         assertEquals(10000, balance(bob));
         assertEquals("Lunch", replay.body().get("note").asString());
+    }
+
+    @Test
+    void feeIsReadFromTheFeesTableAndAReplayKeepsTheFeeThatWasCharged() {
+        Response first = transfer("key-1", alice, bob, 10000, null);
+        assertEquals(500, first.body().get("fee").asLong());
+
+        setTransferFee(700);
+        try {
+            Response second = transfer("key-2", alice, bob, 10000, null);
+            Response replay = transfer("key-1", alice, bob, 10000, null);
+
+            assertEquals(700, second.body().get("fee").asLong());
+            assertEquals(first.body(), replay.body(), "a replay returns the fee of the original transfer");
+            assertEquals(50000 - 10500 - 10700, balance(alice));
+            assertEquals(1200, balance(REVENUE));
+        } finally {
+            setTransferFee(500);
+        }
+    }
+
+    @Test
+    void transferNeedsBalanceForTheConfiguredFee() {
+        setTransferFee(2000);
+        try {
+            assertError(transfer("key-1", alice, bob, 48500, null), 422, "INSUFFICIENT_BALANCE");
+            assertEquals(201, transfer("key-2", alice, bob, 48000, null).status());
+        } finally {
+            setTransferFee(500);
+        }
+    }
+
+    private void setTransferFee(long poisha) {
+        jdbcClient.sql("UPDATE " + Fees.TABLE + " SET " + Fees.AMOUNT + " = :amount WHERE "
+                + Fees.TRANSACTION_TYPE + " = 'TRANSFER'").param("amount", poisha).update();
     }
 
     @Test

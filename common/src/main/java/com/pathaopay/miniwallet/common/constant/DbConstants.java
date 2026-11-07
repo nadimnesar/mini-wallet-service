@@ -37,6 +37,14 @@ public final class DbConstants {
         public static final String CREATED_AT = "created_at";
     }
 
+    /** Table {@code fees}: the fee charged per transaction type, seeded by Liquibase. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class Fees {
+        public static final String TABLE = "fees";
+        public static final String TRANSACTION_TYPE = "transaction_type";
+        public static final String AMOUNT = "amount";
+    }
+
     /** Table {@code ledger_entries}, the append-only ledger. */
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class LedgerEntries {
