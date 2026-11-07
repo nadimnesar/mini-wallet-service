@@ -522,6 +522,77 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         assertEquals(2, ledgerEntries());
     }
 
+    @Test
+    void noRowLockIsHeldWhileTheGatewayAnswers() {
+        UUID requestId = UUID.fromString(addMoney(phone, "key-1", 50000, ref("GW-TIMEOUT-1"), "VISA")
+                .body().get("request_id").asString());
+        // The TIMEOUT stub answers after 10 s and the client gives up after 1 s: once the gateway has seen the call,
+        // the worker is waiting for the answer.
+        await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(10)).until(() -> gatewayCalls("visa") >= 1);
+
+        // NOWAIT fails at once if the worker still holds the request row's lock.
+        UUID locked = jdbcClient.sql("SELECT " + AddMoneyRequests.ID + " FROM " + AddMoneyRequests.TABLE
+                        + " WHERE " + AddMoneyRequests.ID + " = :id FOR UPDATE NOWAIT")
+                .param("id", requestId).query(UUID.class).single();
+
+        assertEquals(requestId, locked);
+    }
+
+    @Test
+    void aRequestThatAlwaysCrashesTheWorkerIsCountedAndEndsFailedOnTheDeadLetterQueue() {
+        jdbcClient.sql("CREATE FUNCTION test_reject_transactions() RETURNS trigger LANGUAGE plpgsql AS $$ "
+                + "BEGIN RAISE EXCEPTION 'simulated bug'; END; $$").update();
+        jdbcClient.sql("CREATE TRIGGER test_reject_transactions BEFORE INSERT ON " + Transactions.TABLE
+                + " FOR EACH ROW EXECUTE FUNCTION test_reject_transactions()").update();
+        try {
+            JsonNode failed = addMoneyAndAwait(phone, "key-1", 50000, ref("GW-1"), "VISA");
+
+            assertEquals("FAILED", failed.get("status").asString());
+            assertEquals("INTERNAL_SERVER_ERROR", failed.get("error_code").asString());
+            assertTrue(failed.get("error_message").asString().endsWith("(gave up after 3 attempts)"));
+            assertEquals(ADD_MONEY_MAX_ATTEMPTS, failed.get("attempts").asInt());
+            assertEquals(0, ledgerEntries());
+            assertEquals(0, balanceOf(phone));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertEquals(1, deadLetters()));
+        } finally {
+            jdbcClient.sql("DROP TRIGGER test_reject_transactions ON " + Transactions.TABLE).update();
+            jdbcClient.sql("DROP FUNCTION test_reject_transactions()").update();
+        }
+    }
+
+    @Test
+    void aMessageThatComesBackBeforeTheBackoffEndedIsParkedAgainWithoutCountingAnAttempt() {
+        // One failed attempt was recorded just now (3 s in the future), so its backoff has not elapsed.
+        UUID requestId = retryingRequest(50000, ref("GW-1"), 3);
+
+        transactionService.processAddMoney(requestId);
+
+        JsonNode early = get("/api/v1/wallets/add-money/" + requestId).body();
+        assertEquals("PENDING", early.get("status").asString());
+        assertEquals(1, early.get("attempts").asInt(), "an early redelivery is not an attempt");
+        assertEquals(0, gatewayCalls("visa"), "and it does not even call the gateway");
+
+        JsonNode done = awaitFinal(requestId.toString());
+        assertEquals("COMPLETED", done.get("status").asString());
+        assertEquals(2, done.get("attempts").asInt());
+        assertEquals(1, gatewayCalls("visa"), "the parked message waited, then verified the payment once");
+        assertEquals(50000, balanceOf(phone));
+    }
+
+    /** A PENDING request with one recorded failed attempt whose backoff ends {@code backoffSeconds} from now. */
+    private UUID retryingRequest(long amount, String gatewayRef, int backoffSeconds) {
+        UUID id = UUID.randomUUID();
+        jdbcClient.sql("INSERT INTO " + AddMoneyRequests.TABLE + " (" + String.join(", ", AddMoneyRequests.ID,
+                        AddMoneyRequests.WALLET_ID, AddMoneyRequests.AMOUNT, AddMoneyRequests.GATEWAY_REF,
+                        AddMoneyRequests.PAYMENT_METHOD, AddMoneyRequests.ATTEMPTS, AddMoneyRequests.PUBLISHED_AT,
+                        AddMoneyRequests.UPDATED_AT) + ")"
+                        + " VALUES (:id, :walletId, :amount, CAST(:ref AS UUID), 'VISA', 1, now(),"
+                        + " now() + :seconds * interval '1 second')")
+                .param("id", id).param("walletId", walletId).param("amount", amount).param("ref", gatewayRef)
+                .param("seconds", backoffSeconds).update();
+        return id;
+    }
+
     /** Stores a PENDING request as acceptance would, with published_at set so the dispatcher does not pick it up. */
     private UUID acceptedRequest(long amount, String gatewayRef) {
         UUID id = UUID.randomUUID();

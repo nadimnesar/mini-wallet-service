@@ -11,9 +11,10 @@ import java.util.UUID;
 
 /**
  * Consumes the add-money work queue. The message is the request id; retries, final failures and the broker calls that
- * follow them are handled by {@link TransactionService#processAddMoney}. An exception that escapes here is a failure
- * nobody planned for (database down, a bug): the container does not requeue it (see application.properties), so the
- * broker dead-letters it, and the dispatcher republishes the still-PENDING request later.
+ * follow them are handled by {@link TransactionService#processAddMoney}, which also counts unexpected errors as
+ * attempts. An exception that still escapes here means the outcome could not be recorded (database or broker down): the
+ * container does not requeue it (see application.properties), so the broker dead-letters it, and the dispatcher
+ * republishes the still-PENDING request later.
  */
 @Component
 @Slf4j
