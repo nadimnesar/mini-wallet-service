@@ -39,6 +39,11 @@ public class WalletController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{phone}/balance")
+    public ResponseEntity<BalanceResponse> getBalance(@PathVariable("phone") String phone) {
+        return ResponseEntity.ok(walletService.getBalance(phone));
+    }
+
     @PostMapping("/add-money")
     public ResponseEntity<AddMoneyResponse> addMoney(
             @RequestHeader(name = "Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,

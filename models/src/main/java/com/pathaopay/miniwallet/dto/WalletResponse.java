@@ -7,6 +7,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record WalletResponse(
+        @JsonProperty("wallet_id")
+        UUID walletId,
+
         @JsonProperty("user_id")
         UUID userId,
 
@@ -18,9 +21,6 @@ public record WalletResponse(
 
         @JsonProperty("type")
         WalletType type,
-
-        @JsonProperty("balance")
-        long balance,
 
         @JsonProperty("created_at")
         Instant createdAt

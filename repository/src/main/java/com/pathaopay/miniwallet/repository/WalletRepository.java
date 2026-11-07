@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.repository;
 
 import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
+import com.pathaopay.miniwallet.model.WalletBalance;
 import com.pathaopay.miniwallet.model.WalletType;
 
 import java.util.Optional;
@@ -10,7 +11,7 @@ import java.util.UUID;
 public interface WalletRepository {
 
     /**
-     * Inserts a new zero-balance customer (LIABILITY) wallet unless {@code userId} or {@code phone} is already used by
+     * Inserts a new customer (LIABILITY) wallet unless {@code userId} or {@code phone} is already used by
      * another wallet. Safe under concurrency: at most one of several racing inserts succeeds.
      *
      * @return the created wallet, or empty if the user or the phone already has a wallet
@@ -27,6 +28,9 @@ public interface WalletRepository {
     Optional<Wallet> findByPhone(String phone);
 
     boolean existsById(UUID walletId);
+
+    /** The wallet's balance from its newest ledger entry, or empty if it has no entries (balance 0). */
+    Optional<WalletBalance> findLatestBalance(UUID walletId);
 
     /**
      * Locks the wallet row ({@code SELECT ... FOR UPDATE}) until the current transaction ends, which

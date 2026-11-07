@@ -276,7 +276,7 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     private long apiBalance(UUID walletId) {
         String phone = jdbcClient.sql("SELECT " + Wallets.PHONE + " FROM " + Wallets.TABLE + " WHERE "
                 + Wallets.WALLET_ID + " = :id").param("id", walletId).query(String.class).single();
-        return walletService.getWallet(phone).balance();
+        return walletService.getBalance(phone).balance();
     }
 
     private void insertTransaction(String type, long amount, UUID gatewayRef, String paymentMethod) {

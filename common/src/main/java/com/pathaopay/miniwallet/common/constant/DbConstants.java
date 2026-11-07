@@ -22,9 +22,6 @@ public final class DbConstants {
         public static final String CURRENCY = "currency";
         public static final String TYPE = "type";
         public static final String CREATED_AT = "created_at";
-        public static final String UPDATED_AT = "updated_at";
-        /** Query alias for the derived balance; wallets has no balance column. */
-        public static final String BALANCE_ALIAS = "balance";
     }
 
     /** Table {@code transactions}: one append-only row per business operation, grouping its ledger entries. */

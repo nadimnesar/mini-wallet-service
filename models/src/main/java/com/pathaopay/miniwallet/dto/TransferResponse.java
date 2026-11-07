@@ -10,8 +10,14 @@ public record TransferResponse(
         @JsonProperty("transfer_id")
         UUID transferId,
 
+        @JsonProperty("from_wallet_id")
+        UUID fromWalletId,
+
         @JsonProperty("from_phone")
         String fromPhone,
+
+        @JsonProperty("to_wallet_id")
+        UUID toWalletId,
 
         @JsonProperty("to_phone")
         String toPhone,

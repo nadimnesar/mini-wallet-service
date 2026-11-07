@@ -196,11 +196,11 @@ public class DefaultTransactionService implements TransactionService {
         LedgerTransaction transaction = transactionRepository.insert(
                 new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, null));
         UUID id = transaction.id();
-        sender.append(transactionRepository, EntryType.TRANSFER_OUT, amount, receiverWallet.id(), id);
+        LedgerEntry out = sender.append(transactionRepository, EntryType.TRANSFER_OUT, amount, receiverWallet.id(), id);
         sender.append(transactionRepository, EntryType.FEE_OUT, fee, revenue, id);
         receiver.append(transactionRepository, EntryType.TRANSFER_IN, amount, senderWallet.id(), id);
         chains.get(revenue).append(transactionRepository, EntryType.FEE_IN, fee, senderWallet.id(), id);
-        return toTransferResponse(transaction, from, to);
+        return toTransferResponse(transaction, out, from, to);
     }
 
     /**
@@ -296,7 +296,7 @@ public class DefaultTransactionService implements TransactionService {
 
     private TransferResponse rebuildTransfer(UUID transferId) {
         LedgerEntry out = requireEntry(transferId, EntryType.TRANSFER_OUT);
-        return toTransferResponse(requireTransaction(transferId), phoneOf(out.walletId()),
+        return toTransferResponse(requireTransaction(transferId), out, phoneOf(out.walletId()),
                 phoneOf(out.counterpartyWalletId()));
     }
 
@@ -320,7 +320,7 @@ public class DefaultTransactionService implements TransactionService {
     }
 
     private static AddMoneyResponse toAddMoneyResponse(LedgerTransaction transaction, LedgerEntry credit, String phone) {
-        return new AddMoneyResponse(transaction.id(), phone, transaction.amount(), credit.balanceAfter(),
+        return new AddMoneyResponse(transaction.id(), credit.walletId(), phone, transaction.amount(), credit.balanceAfter(),
                 transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt());
     }
 
@@ -355,15 +355,18 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static TransferResponse toTransferResponse(LedgerTransaction transaction, String from, String to) {
-        return new TransferResponse(transaction.id(), from, to, transaction.amount(),
+    private static TransferResponse toTransferResponse(LedgerTransaction transaction, LedgerEntry out, String from,
+                                                         String to) {
+        return new TransferResponse(transaction.id(), out.walletId(), from, out.counterpartyWalletId(), to,
+                transaction.amount(),
                 AppConstants.TRANSFER_FEE_POISHA, TRANSFER_STATUS_COMPLETED, transaction.createdAt());
     }
 
     private static TransactionItemResponse toItem(LedgerEntryView view) {
         LedgerEntry e = view.entry();
-        return new TransactionItemResponse(e.id(), e.transactionId(), view.phone(), e.type(), e.direction(),
-                e.amount(), e.balanceAfter(), view.counterpartyPhone(), e.createdAt());
+        return new TransactionItemResponse(e.id(), e.transactionId(), e.walletId(), view.phone(), e.type(),
+                e.direction(), e.amount(), e.balanceAfter(), e.counterpartyWalletId(), view.counterpartyPhone(),
+                e.createdAt());
     }
 
     /** Served by the read replica; entries may lag the primary by the replication delay. */

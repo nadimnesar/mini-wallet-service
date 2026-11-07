@@ -66,7 +66,8 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
         JsonNode second = page.get("items").get(3);
         assertEquals(bob, second.get("counterparty_phone").asString());
         assertEquals(alice, second.get("phone").asString());
-        assertEquals(false, second.has("counterparty_wallet_id"));
+        assertEquals(walletService.getWallet(alice).walletId().toString(), second.get("wallet_id").asString());
+        assertEquals(walletService.getWallet(bob).walletId().toString(), second.get("counterparty_wallet_id").asString());
         assertEquals(transferId.toString(), second.get("transaction_id").asString());
         assertEquals(10000, second.get("amount").asLong());
     }

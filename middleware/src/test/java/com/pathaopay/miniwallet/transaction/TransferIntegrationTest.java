@@ -64,7 +64,10 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(201, response.status());
         assertEquals(alice, response.body().get("from_phone").asString());
         assertEquals(bob, response.body().get("to_phone").asString());
-        assertEquals(false, response.body().has("from_wallet_id"));
+        assertEquals(7, UUID.fromString(response.body().get("from_wallet_id").asString()).version());
+        assertEquals(7, UUID.fromString(response.body().get("to_wallet_id").asString()).version());
+        assertEquals(walletService.getWallet(alice).walletId().toString(), response.body().get("from_wallet_id").asString());
+        assertEquals(walletService.getWallet(bob).walletId().toString(), response.body().get("to_wallet_id").asString());
         assertEquals(10000, response.body().get("amount").asLong());
         assertEquals(500, response.body().get("fee").asLong());
         assertEquals("COMPLETED", response.body().get("status").asString());
@@ -257,7 +260,7 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long balance(String phone) {
-        return walletService.getWallet(phone).balance();
+        return walletService.getBalance(phone).balance();
     }
 
     private Response transfer(String key, String from, String to, long amount, String note) {

@@ -15,6 +15,9 @@ public record TransactionItemResponse(
         @JsonProperty("transaction_id")
         UUID transactionId,
 
+        @JsonProperty("wallet_id")
+        UUID walletId,
+
         @JsonProperty("phone")
         String phone,
 
@@ -29,6 +32,9 @@ public record TransactionItemResponse(
 
         @JsonProperty("balance_after")
         long balanceAfter,
+
+        @JsonProperty("counterparty_wallet_id")
+        UUID counterpartyWalletId,
 
         @JsonProperty("counterparty_phone")
         String counterpartyPhone,

@@ -39,10 +39,12 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     void createsZeroBalanceBdtWalletAndStoresNormalizedPhone() {
         WalletResponse response = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "+8801711000001"));
 
+        assertEquals(7, response.walletId().version());
+        assertEquals(2, response.walletId().variant());
         assertEquals(user("u_1001"), response.userId());
         assertEquals("01711000001", response.phone());
         assertEquals(Currency.BDT, response.currency());
-        assertEquals(0, response.balance());
+        assertEquals(0, walletService.getBalance(response.phone()).balance());
         assertEquals("01711000001", storedPhone(user("u_1001")));
         assertEquals(AppConstants.SYSTEM_USER_ID.equals(response.userId()), false);
     }
@@ -108,6 +110,7 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void walletBalanceIsTheLatestLedgerBalance() {
         WalletResponse wallet = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
+        assertEquals(0, walletService.getBalance(wallet.phone()).balance());
         UUID id = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", wallet.phone())
                 .query(UUID.class).single();
         jdbcClient.sql("""
@@ -128,8 +131,7 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
                 .param("c", AppConstants.GATEWAY_CLEARING_WALLET_ID).param("w", id)
                 .update();
 
-        assertEquals(0, wallet.balance());
-        assertEquals(70000, walletService.getWallet(wallet.phone()).balance());
+        assertEquals(70000, walletService.getBalance(wallet.phone()).balance());
     }
 
     @Test

@@ -65,7 +65,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
         assertEquals(201, response.status());
         assertEquals(phone, response.body().get("phone").asString());
-        assertEquals(false, response.body().has("wallet_id"));
+        assertEquals(walletId.toString(), response.body().get("wallet_id").asString());
         assertEquals(50000, response.body().get("added_amount").asLong());
         assertEquals(50000, response.body().get("balance").asLong());
         assertEquals(ref("GW-VISA-1"), response.body().get("gateway_ref").asString());
@@ -76,7 +76,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
                         + " = :ref AND " + Transactions.PAYMENT_METHOD + " = 'VISA'")
                 .param("id", UUID.fromString(response.body().get("transaction_id").asString()))
                 .param("ref", UUID.fromString(ref("GW-VISA-1"))).query(Long.class).single());
-        assertEquals(50000, walletService.getWallet(phone).balance());
+        assertEquals(50000, walletService.getBalance(phone).balance());
         assertEquals(1, gatewayCalls("visa"));
     }
 
@@ -142,7 +142,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         Response reused = addMoney(phone, "key-1", 60000, ref("GW-1"), "VISA");
 
         assertError(reused, 422, "IDEMPOTENCY_KEY_REUSED");
-        assertEquals(50000, walletService.getWallet(phone).balance());
+        assertEquals(50000, walletService.getBalance(phone).balance());
     }
 
     @Test
@@ -165,7 +165,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, bodies.size(), "every caller gets the same response");
         assertEquals(1, gatewayCalls("visa"));
         assertEquals(1, ledgerEntries());
-        assertEquals(50000, walletService.getWallet(phone).balance());
+        assertEquals(50000, walletService.getBalance(phone).balance());
     }
 
     @Test
@@ -233,7 +233,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
         assertError(duplicate, 409, "DUPLICATE_GATEWAY_REF");
         assertEquals(1, gatewayCalls("visa"), "a known gateway_ref is rejected before calling the gateway");
-        assertEquals(50000, walletService.getWallet(phone).balance());
+        assertEquals(50000, walletService.getBalance(phone).balance());
     }
 
     @Test
@@ -243,7 +243,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, responses.stream().filter(r -> r.status() == 201).count());
         responses.stream().filter(r -> r.status() != 201)
                 .forEach(r -> assertError(r, 409, "DUPLICATE_GATEWAY_REF"));
-        assertEquals(50000, walletService.getWallet(phone).balance());
+        assertEquals(50000, walletService.getBalance(phone).balance());
     }
 
     @Test
@@ -252,7 +252,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
                 i % 2 == 0 ? "VISA" : "MASTERCARD"));
 
         responses.forEach(r -> assertEquals(201, r.status()));
-        assertEquals(55000, walletService.getWallet(phone).balance());
+        assertEquals(55000, walletService.getBalance(phone).balance());
         assertEquals(10, ledgerEntries());
     }
 
@@ -388,7 +388,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     private long balanceOf(String phone) {
-        return walletService.getWallet(phone).balance();
+        return walletService.getBalance(phone).balance();
     }
 
     private long idempotencyKeys() {

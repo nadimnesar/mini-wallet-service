@@ -11,6 +11,9 @@ public record AddMoneyResponse(
         @JsonProperty("transaction_id")
         UUID transactionId,
 
+        @JsonProperty("wallet_id")
+        UUID walletId,
+
         @JsonProperty("phone")
         String phone,
 

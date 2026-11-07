@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A wallet. {@code id} is a UUIDv7. {@code balance} (poisha) is not stored on the wallet: it is the
- * {@code balance_after} of the wallet's latest ledger entry, or 0 when it has none.
+ * A wallet's static identity. {@code id} is a UUIDv7. The balance is not stored on the wallet: see
+ * {@link WalletBalance}, derived from the wallet's latest ledger entry.
  */
 public record Wallet(
         UUID id,
@@ -13,7 +13,5 @@ public record Wallet(
         String phone,
         Currency currency,
         WalletType type,
-        long balance,
-        Instant createdAt,
-        Instant updatedAt
+        Instant createdAt
 ) {}
