@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset miniwallet:003-create-idempotency-keys-table
+--changeset miniwallet:004-create-idempotency-keys-table
 CREATE TABLE idempotency_keys
 (
     idempotency_key TEXT        NOT NULL,

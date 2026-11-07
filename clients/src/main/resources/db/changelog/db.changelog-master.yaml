@@ -3,8 +3,11 @@ databaseChangeLog:
       file: sql/001-create-wallets-table.sql
       relativeToChangelogFile: true
   - include:
-      file: sql/002-create-wallet-transactions-table.sql
+      file: sql/002-create-transactions-table.sql
       relativeToChangelogFile: true
   - include:
-      file: sql/003-create-idempotency-keys-table.sql
+      file: sql/003-create-ledger-entries-table.sql
+      relativeToChangelogFile: true
+  - include:
+      file: sql/004-create-idempotency-keys-table.sql
       relativeToChangelogFile: true
