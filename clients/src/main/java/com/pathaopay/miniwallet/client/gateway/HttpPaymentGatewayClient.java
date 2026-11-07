@@ -79,7 +79,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
         log.info("{} gateway verified payment: gatewayRef={} status={} declineReason={}",
                 method, gatewayRef, response.status(), response.declineReason());
         return new PaymentVerification(response.gatewayRef(), response.status(), response.amount(),
-                response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason(),
+                response.currency(), response.cardNetwork(), response.declineReason(),
                 response.merchantReference());
     }
 
@@ -96,7 +96,6 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
             @JsonProperty("amount") Long amount,
             @JsonProperty("currency") String currency,
             @JsonProperty("card_network") PaymentMethod cardNetwork,
-            @JsonProperty("authorization_code") String authorizationCode,
             @JsonProperty("decline_reason") String declineReason,
             @JsonProperty("merchant_reference") String merchantReference) {
     }

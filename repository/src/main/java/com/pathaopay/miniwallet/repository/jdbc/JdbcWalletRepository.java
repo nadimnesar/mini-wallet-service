@@ -46,9 +46,6 @@ public class JdbcWalletRepository implements WalletRepository {
                     + " ORDER BY " + LedgerEntries.ENTRY_NO + " DESC"
                     + " LIMIT 1";
 
-    private static final String EXISTS_BY_ID =
-            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id)";
-
     private static final String LOCK_FOR_UPDATE =
             "SELECT " + Wallets.TYPE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id FOR UPDATE";
 
@@ -80,11 +77,6 @@ public class JdbcWalletRepository implements WalletRepository {
     @Override
     public boolean existsByPhone(String phone) {
         return jdbcClient.sql(EXISTS_BY_PHONE).param("phone", phone).query(Boolean.class).single();
-    }
-
-    @Override
-    public boolean existsById(UUID walletId) {
-        return jdbcClient.sql(EXISTS_BY_ID).param("id", walletId).query(Boolean.class).single();
     }
 
     @Override

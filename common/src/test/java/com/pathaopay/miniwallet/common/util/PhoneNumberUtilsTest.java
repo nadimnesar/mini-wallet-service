@@ -7,16 +7,13 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PhoneNumberUtilsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"1711000001", "  1711000001 ", "01711000001", "8801711000001", "+8801711000001", "  +8801711000001  "})
     void normalizesAllAcceptedFormatsToLocalForm(String input) {
-        assertTrue(PhoneNumberUtils.isValid(input));
         assertEquals("01711000001", PhoneNumberUtils.normalize(input));
     }
 
@@ -25,14 +22,12 @@ class PhoneNumberUtilsTest {
     @ValueSource(strings = {"", "   ", "171100000", "17110000012", "0171100000", "017110000012", "+01711000001",
             "+88 01711000001", "008801711000001", "880171100000", "881711000001", "8801711000001 2", "2711000001", "+8801711000001x", "0271100000a"})
     void rejectsInvalidNumbers(String input) {
-        assertFalse(PhoneNumberUtils.isValid(input));
         assertThrows(InvalidPhoneNumberException.class, () -> PhoneNumberUtils.normalize(input));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"01011000001", "01111000001", "01211000001", "01311000001", "01911000001", "1011000001", "+8801011000001"})
     void everyOperatorPrefixIsAValidNumber(String input) {
-        assertTrue(PhoneNumberUtils.isValid(input));
         assertEquals(11, PhoneNumberUtils.normalize(input).length());
     }
 

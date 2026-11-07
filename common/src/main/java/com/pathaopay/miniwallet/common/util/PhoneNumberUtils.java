@@ -20,11 +20,6 @@ public final class PhoneNumberUtils {
 
     private static final Pattern ACCEPTED = Pattern.compile(AppConstants.PHONE_ACCEPTED_PATTERN);
 
-    /** Returns {@code true} if {@code phone} is in one of the accepted formats. */
-    public static boolean isValid(String phone) {
-        return phone != null && ACCEPTED.matcher(phone.strip()).matches();
-    }
-
     /**
      * Converts {@code phone} to {@code 01XXXXXXXXX}.
      *

@@ -26,8 +26,6 @@ public interface WalletRepository {
     /** Looks a wallet up by its canonical phone number (01XXXXXXXXX), the external identity. */
     Optional<Wallet> findByPhone(String phone);
 
-    boolean existsById(UUID walletId);
-
     /** The wallet's balance from its newest ledger entry, or empty if it has no entries (balance 0). */
     Optional<WalletBalance> findLatestBalance(UUID walletId);
 

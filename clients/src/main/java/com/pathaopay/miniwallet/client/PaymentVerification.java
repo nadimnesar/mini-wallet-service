@@ -14,7 +14,6 @@ public record PaymentVerification(
         long amount,
         String currency,
         PaymentMethod cardNetwork,
-        String authorizationCode,
         String declineReason,
         String merchantReference
 ) {
