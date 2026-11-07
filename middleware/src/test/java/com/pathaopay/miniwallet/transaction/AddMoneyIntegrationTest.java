@@ -325,9 +325,26 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void pendingPaymentDoesNotCredit() {
-        assertFailed(addMoneyAndAwait(phone, "key-1", 50000, ref("GW-PENDING-1"), "VISA"), "PAYMENT_DECLINED");
+    void paymentThatStaysPendingIsRetriedThenFailsWithoutCrediting() {
+        JsonNode failed = addMoneyAndAwait(phone, "key-1", 50000, ref("GW-PENDING-1"), "VISA");
+
+        assertFailed(failed, "PAYMENT_PENDING");
+        assertEquals(ADD_MONEY_MAX_ATTEMPTS, failed.get("attempts").asInt());
+        assertEquals(ADD_MONEY_MAX_ATTEMPTS, gatewayCalls("visa"));
+        assertTrue(failed.get("error_message").asString().contains("AWAITING_3DS_AUTHENTICATION"));
         assertEquals(0, ledgerEntries());
+    }
+
+    @Test
+    void paymentCapturedAfterThreeDSecureCompletesIsCreditedOnALaterAttempt() {
+        JsonNode done = addMoneyAndAwait(phone, "key-1", 50000, ref("GW-SLOW3DS-1"), "VISA");
+
+        assertEquals("COMPLETED", done.get("status").asString());
+        assertEquals(3, done.get("attempts").asInt(), "pending twice, captured on the third check");
+        assertEquals(50000, done.get("balance").asLong());
+        assertEquals(3, gatewayCalls("visa"));
+        assertEquals(1, ledgerEntries());
+        assertEquals(0, deadLetters());
     }
 
     @Test
@@ -648,7 +665,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     /** Mock-gateway scenario prefixes (see docker/wiremock): the first UUID group picks the outcome. */
     private static final Map<String, String> SCENARIO_PREFIXES = Map.of(
             "DECLINED", "00000402", "PENDING", "00000202", "NOTFOUND", "00000404",
-            "MISMATCH", "00000422", "OTHERWALLET", "00000423", "ERROR", "00000500", "FLAKY", "00000503",
+            "MISMATCH", "00000422", "OTHERWALLET", "00000423", "ERROR", "00000500", "FLAKY", "00000503", "SLOW3DS", "00000203",
             "TIMEOUT", "00000504");
 
     /**
