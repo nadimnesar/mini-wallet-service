@@ -9,6 +9,7 @@ import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
 import com.pathaopay.miniwallet.model.PaymentMethod;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -26,6 +27,7 @@ import java.util.UUID;
  * (stubs in {@code docker/wiremock}).
  */
 @Component
+@Slf4j
 public class HttpPaymentGatewayClient implements PaymentGatewayClient {
 
     private final RestClient restClient;
@@ -51,6 +53,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount) {
         String network = method.name().toLowerCase(Locale.ROOT);
         VerifyResponse response;
+        log.debug("Verifying payment with {} gateway: gatewayRef={} amount={}", method, gatewayRef, amount);
         try {
             response = restClient.post()
                     .uri(PaymentGatewayConstants.VERIFY_PATH.formatted(network))
@@ -60,16 +63,21 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
                     .body(new VerifyRequest(gatewayRef, amount, AppConstants.CURRENCY_CODE))
                     .retrieve()
                     .onStatus(status -> status.isSameCodeAs(HttpStatus.NOT_FOUND), (request, res) -> {
+                        log.info("{} gateway has no payment: gatewayRef={}", method, gatewayRef);
                         throw new PaymentNotFoundException(ErrorMessage.PAYMENT_NOT_FOUND.formatted(method, gatewayRef));
                     })
                     .body(VerifyResponse.class);
         } catch (RestClientException e) {
             // Non-2xx (other than 404), timeouts, connection failures and unreadable bodies.
+            log.warn("{} gateway call failed: gatewayRef={} cause={}", method, gatewayRef, e.getMessage());
             throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), e);
         }
         if (response == null || response.status() == null || response.amount() == null) {
+            log.warn("{} gateway returned an incomplete response: gatewayRef={}", method, gatewayRef);
             throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), null);
         }
+        log.info("{} gateway verified payment: gatewayRef={} status={} declineReason={}",
+                method, gatewayRef, response.status(), response.declineReason());
         return new PaymentVerification(response.gatewayRef(), response.status(), response.amount(),
                 response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason());
     }
