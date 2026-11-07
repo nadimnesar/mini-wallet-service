@@ -1,6 +1,7 @@
-package com.pathaopay.miniwallet.client.messaging;
+package com.pathaopay.miniwallet.client.impl;
 
 import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
+import com.pathaopay.miniwallet.client.config.properties.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.common.constant.MessagingConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

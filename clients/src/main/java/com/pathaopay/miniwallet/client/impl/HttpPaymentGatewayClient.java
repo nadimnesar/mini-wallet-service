@@ -1,8 +1,9 @@
-package com.pathaopay.miniwallet.client.gateway;
+package com.pathaopay.miniwallet.client.impl;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
 import com.pathaopay.miniwallet.client.PaymentVerification;
+import com.pathaopay.miniwallet.client.config.properties.PaymentGatewayProperties;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;

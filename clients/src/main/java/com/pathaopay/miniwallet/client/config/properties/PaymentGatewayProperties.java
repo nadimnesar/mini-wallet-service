@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.client.gateway;
+package com.pathaopay.miniwallet.client.config.properties;
 
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.model.enums.PaymentMethod;

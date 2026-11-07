@@ -1,5 +1,6 @@
-package com.pathaopay.miniwallet.client.messaging;
+package com.pathaopay.miniwallet.client.config;
 
+import com.pathaopay.miniwallet.client.config.properties.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.common.constant.MessagingConstants;
 import org.springframework.amqp.core.Declarable;
 import org.springframework.amqp.core.Declarables;

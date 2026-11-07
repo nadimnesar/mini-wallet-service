@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.service.addmoney;
 
 import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
-import com.pathaopay.miniwallet.client.messaging.AddMoneyMessagingProperties;
+import com.pathaopay.miniwallet.client.config.properties.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.repository.AddMoneyRequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

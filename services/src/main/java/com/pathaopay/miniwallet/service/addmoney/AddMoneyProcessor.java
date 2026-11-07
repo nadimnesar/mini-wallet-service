@@ -3,7 +3,7 @@ package com.pathaopay.miniwallet.service.addmoney;
 import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
 import com.pathaopay.miniwallet.client.PaymentVerification;
-import com.pathaopay.miniwallet.client.messaging.AddMoneyMessagingProperties;
+import com.pathaopay.miniwallet.client.config.properties.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
