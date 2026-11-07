@@ -1,7 +1,8 @@
 package com.pathaopay.miniwallet.controller;
 
-import com.pathaopay.miniwallet.dto.*;
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.dto.request.*;
+import com.pathaopay.miniwallet.dto.response.*;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import jakarta.validation.Valid;

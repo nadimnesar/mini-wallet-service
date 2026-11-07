@@ -1,10 +1,10 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
-import com.pathaopay.miniwallet.dto.AddMoneyRequest;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.dto.TransferRequest;
-import com.pathaopay.miniwallet.model.PaymentMethod;
+import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.request.TransferRequest;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;

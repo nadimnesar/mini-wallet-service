@@ -1,5 +1,7 @@
 package com.pathaopay.miniwallet.model;
 
+import com.pathaopay.miniwallet.model.enums.TransactionType;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import java.time.Instant;
 import java.util.UUID;
 

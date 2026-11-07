@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.repository;
 
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.model.LedgerEntry;
 import com.pathaopay.miniwallet.model.LedgerEntryView;
 import com.pathaopay.miniwallet.model.LedgerTransaction;

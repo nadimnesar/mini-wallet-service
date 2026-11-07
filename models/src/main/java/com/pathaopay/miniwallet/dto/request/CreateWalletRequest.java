@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.common.constant.AppConstants;

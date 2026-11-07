@@ -1,8 +1,8 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.pathaopay.miniwallet.model.EntryDirection;
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.enums.EntryDirection;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 
 import java.time.Instant;
 import java.util.UUID;

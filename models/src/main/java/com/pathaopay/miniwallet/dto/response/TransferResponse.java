@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

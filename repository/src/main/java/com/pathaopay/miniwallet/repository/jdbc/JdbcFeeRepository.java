@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.enums.TransactionType;
 import com.pathaopay.miniwallet.repository.FeeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.simple.JdbcClient;

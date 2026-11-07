@@ -1,5 +1,8 @@
 package com.pathaopay.miniwallet.model;
 
+import com.pathaopay.miniwallet.model.enums.WalletType;
+import com.pathaopay.miniwallet.model.enums.EntryType;
+import com.pathaopay.miniwallet.model.enums.EntryDirection;
 import java.time.Instant;
 import java.util.UUID;
 

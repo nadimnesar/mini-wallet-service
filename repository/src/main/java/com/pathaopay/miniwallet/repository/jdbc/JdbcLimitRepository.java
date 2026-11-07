@@ -2,7 +2,7 @@ package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
 import com.pathaopay.miniwallet.model.TransactionLimit;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.enums.TransactionType;
 import com.pathaopay.miniwallet.repository.LimitRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.simple.JdbcClient;

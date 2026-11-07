@@ -2,10 +2,10 @@ package com.pathaopay.miniwallet.repository.jdbc;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
-import com.pathaopay.miniwallet.model.Currency;
+import com.pathaopay.miniwallet.model.enums.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.WalletBalance;
-import com.pathaopay.miniwallet.model.WalletType;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;

@@ -4,7 +4,7 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;

@@ -8,9 +8,9 @@ import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException
 import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
 import com.pathaopay.miniwallet.common.exception.wallet.ReservedUserIdException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.dto.WalletResponse;
-import com.pathaopay.miniwallet.model.Currency;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.response.WalletResponse;
+import com.pathaopay.miniwallet.model.enums.Currency;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

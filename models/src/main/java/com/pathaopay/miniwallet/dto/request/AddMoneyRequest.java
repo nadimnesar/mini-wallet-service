@@ -1,8 +1,8 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
-import com.pathaopay.miniwallet.model.PaymentMethod;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;

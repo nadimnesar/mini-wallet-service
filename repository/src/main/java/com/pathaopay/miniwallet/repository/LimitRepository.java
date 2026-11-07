@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.repository;
 
 import com.pathaopay.miniwallet.model.TransactionLimit;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.enums.TransactionType;
 
 import java.util.Optional;
 
