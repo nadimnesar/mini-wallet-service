@@ -3,6 +3,7 @@ package com.pathaopay.miniwallet.transaction;
 import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
@@ -313,8 +314,34 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void amountOutsideLimitsIsRejected() {
-        assertError(addMoney(phone, "key-1", 99, ref("GW-1"), "VISA"), 400, "VALIDATION_ERROR");
-        assertError(addMoney(phone, "key-2", 2_500_001, ref("GW-2"), "VISA"), 400, "VALIDATION_ERROR");
+        Response tooSmall = addMoney(phone, "key-1", 99, ref("GW-1"), "VISA");
+        Response tooLarge = addMoney(phone, "key-2", 2_500_001, ref("GW-2"), "VISA");
+
+        assertError(tooSmall, 400, "INVALID_AMOUNT");
+        assertEquals("amount must be at least 100 poisha (1 BDT)", tooSmall.body().get("error").get("message").asString());
+        assertError(tooLarge, 400, "INVALID_AMOUNT");
+        assertEquals("amount must be at most 2500000 poisha (25000 BDT)", tooLarge.body().get("error").get("message").asString());
+        assertEquals(0, gatewayCalls("visa"), "an amount outside the limits is rejected before calling the gateway");
+        assertEquals(100, addMoney(phone, "key-3", 100, ref("GW-3"), "VISA").body().get("added_amount").asLong());
+        assertEquals(201, addMoney(phone, "key-4", 2_500_000, ref("GW-4"), "VISA").status());
+    }
+
+    @Test
+    void limitsAreReadFromTheLimitsTable() {
+        setLimit("ADD_MONEY", 500, 60000);
+        try {
+            assertError(addMoney(phone, "key-1", 499, ref("GW-1"), "VISA"), 400, "INVALID_AMOUNT");
+            assertError(addMoney(phone, "key-2", 60001, ref("GW-2"), "VISA"), 400, "INVALID_AMOUNT");
+            assertEquals(201, addMoney(phone, "key-3", 60000, ref("GW-3"), "VISA").status());
+        } finally {
+            setLimit("ADD_MONEY", 100, 2_500_000);
+        }
+    }
+
+    private void setLimit(String type, long min, long max) {
+        jdbcClient.sql("UPDATE " + Limits.TABLE + " SET " + Limits.MIN_AMOUNT + " = :min, " + Limits.MAX_AMOUNT
+                + " = :max WHERE " + Limits.TRANSACTION_TYPE + " = :type")
+                .param("min", min).param("max", max).param("type", type).update();
     }
 
     @Test

@@ -58,6 +58,12 @@ public final class ErrorConstants {
         public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer and its fee.";
         public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
         /** Format with the wallet phone and its account type. */
+        /** Format with the minimum amount in poisha and in BDT. */
+        public static final String AMOUNT_BELOW_MIN = "amount must be at least %d poisha (%s BDT)";
+        /** Format with the maximum amount in poisha and in BDT. */
+        public static final String AMOUNT_ABOVE_MAX = "amount must be at most %d poisha (%s BDT)";
+        /** Format with the fee, the single-transaction limit and the resulting maximum amount, each in poisha and BDT. */
+        public static final String AMOUNT_PLUS_FEE_ABOVE_MAX = "amount plus the transfer fee of %d poisha (%s BDT) must be at most %d poisha (%s BDT), so amount must be at most %d poisha (%s BDT)";
         public static final String SYSTEM_WALLET_NOT_ALLOWED =
                 "Wallet %s is a %s ledger account, not a customer wallet, and cannot take part in this operation.";
         public static final String INVALID_DATE_RANGE = "from must not be after to";

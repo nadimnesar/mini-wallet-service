@@ -45,6 +45,15 @@ public final class DbConstants {
         public static final String AMOUNT = "amount";
     }
 
+    /** Table {@code limits}: the smallest and largest amount per transaction type, seeded by Liquibase. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class Limits {
+        public static final String TABLE = "limits";
+        public static final String TRANSACTION_TYPE = "transaction_type";
+        public static final String MIN_AMOUNT = "min_amount";
+        public static final String MAX_AMOUNT = "max_amount";
+    }
+
     /** Table {@code ledger_entries}, the append-only ledger. */
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class LedgerEntries {

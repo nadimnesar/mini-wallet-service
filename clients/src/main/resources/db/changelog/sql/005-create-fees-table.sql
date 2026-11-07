@@ -7,7 +7,7 @@ CREATE TABLE fees
     amount           BIGINT      NOT NULL,
     CONSTRAINT pk_fees PRIMARY KEY (transaction_type),
     CONSTRAINT ck_fees_transaction_type CHECK (transaction_type IN ('TRANSFER')),
-    CONSTRAINT ck_fees_amount CHECK (amount BETWEEN 100 AND 2500000)
+    CONSTRAINT ck_fees_amount CHECK (amount > 0)
 );
 --rollback DROP TABLE fees;
 

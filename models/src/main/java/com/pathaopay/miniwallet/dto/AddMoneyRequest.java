@@ -3,8 +3,6 @@ package com.pathaopay.miniwallet.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.model.PaymentMethod;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -19,8 +17,6 @@ public record AddMoneyRequest(
         String phone,
 
         @NotNull(message = AppConstants.AMOUNT_REQUIRED)
-        @Min(value = AppConstants.MIN_AMOUNT_POISHA, message = AppConstants.AMOUNT_MIN)
-        @Max(value = AppConstants.MAX_AMOUNT_POISHA, message = AppConstants.AMOUNT_MAX)
         @JsonProperty("amount")
         Long amount,
 

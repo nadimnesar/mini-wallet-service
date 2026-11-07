@@ -136,9 +136,9 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void amountMustBeWithinLimits() {
-        assertRejected(() -> addMoney(alice, 1, 99, 0, "GW-1"));
-        assertRejected(() -> addMoney(alice, 1, 2_500_001, 0, "GW-2"));
+    void amountMustBePositive() {
+        assertRejected(() -> addMoney(alice, 1, 0, 0, "GW-1"));
+        assertRejected(() -> addMoney(alice, 1, -100, 0, "GW-2"));
     }
 
     @Test
@@ -188,9 +188,9 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void transactionAmountMustBeWithinLimits() {
-        assertRejected(() -> insertTransaction("TRANSFER", 99, null, null));
-        assertRejected(() -> insertTransaction("TRANSFER", 2_500_001, null, null));
+    void transactionAmountMustBePositive() {
+        assertRejected(() -> insertTransaction("TRANSFER", 0, null, null));
+        assertRejected(() -> insertTransaction("TRANSFER", -100, null, null));
     }
 
     @Test

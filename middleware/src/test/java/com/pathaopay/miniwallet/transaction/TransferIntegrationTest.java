@@ -3,6 +3,7 @@ package com.pathaopay.miniwallet.transaction;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
 import com.pathaopay.miniwallet.dto.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.model.PaymentMethod;
@@ -231,8 +232,44 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void amountOutsideLimitsIsRejected() {
-        assertError(transfer("key-1", alice, bob, 99, null), 400, "VALIDATION_ERROR");
-        assertError(transfer("key-2", alice, bob, 2_500_001, null), 400, "VALIDATION_ERROR");
+        assertError(transfer("key-1", alice, bob, 99, null), 400, "INVALID_AMOUNT");
+        assertError(transfer("key-2", alice, bob, 2_500_001, null), 400, "INVALID_AMOUNT");
+    }
+
+    @Test
+    void amountPlusFeeMustStayWithinTheSingleTransactionLimit() {
+        fund(alice, 2_500_000);
+
+        Response tooMuch = transfer("key-1", alice, bob, 2_500_000, null);
+        assertError(tooMuch, 400, "INVALID_AMOUNT");
+        assertEquals("amount plus the transfer fee of 500 poisha (5 BDT) must be at most 2500000 poisha (25000 BDT), "
+                + "so amount must be at most 2499500 poisha (24995 BDT)", tooMuch.body().get("error").get("message").asString());
+        assertEquals(2_550_000, balance(alice));
+
+        Response atTheLimit = transfer("key-2", alice, bob, 2_499_500, null);
+        assertEquals(201, atTheLimit.status());
+        assertEquals(500, atTheLimit.body().get("fee").asLong());
+        assertEquals(2_550_000 - 2_500_000, balance(alice));
+    }
+
+    @Test
+    void limitIsReadFromTheLimitsTableAndFollowsTheFee() {
+        setTransferLimit(1000, 20000);
+        setTransferFee(1000);
+        try {
+            assertError(transfer("key-1", alice, bob, 999, null), 400, "INVALID_AMOUNT");
+            assertError(transfer("key-2", alice, bob, 19001, null), 400, "INVALID_AMOUNT");
+            assertEquals(201, transfer("key-3", alice, bob, 19000, null).status());
+        } finally {
+            setTransferFee(500);
+            setTransferLimit(100, 2_500_000);
+        }
+    }
+
+    private void setTransferLimit(long min, long max) {
+        jdbcClient.sql("UPDATE " + Limits.TABLE + " SET " + Limits.MIN_AMOUNT + " = :min, " + Limits.MAX_AMOUNT
+                + " = :max WHERE " + Limits.TRANSACTION_TYPE + " = 'TRANSFER'")
+                .param("min", min).param("max", max).update();
     }
 
     @Test

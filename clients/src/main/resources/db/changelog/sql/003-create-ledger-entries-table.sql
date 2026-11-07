@@ -36,7 +36,7 @@ CREATE TABLE ledger_entries
         (type IN ('ADD_MONEY', 'TRANSFER_IN', 'TRANSFER_OUT', 'FEE_OUT') AND wallet_type = 'LIABILITY')
             OR (type = 'FEE_IN' AND wallet_type = 'REVENUE')
             OR (type = 'GATEWAY_CLEARING' AND wallet_type = 'ASSET')),
-    CONSTRAINT ck_ledger_entries_amount CHECK (amount BETWEEN 100 AND 2500000),
+    CONSTRAINT ck_ledger_entries_amount CHECK (amount > 0),
     CONSTRAINT ck_ledger_entries_non_negative CHECK (balance_after >= 0),
     CONSTRAINT ck_ledger_entries_arithmetic CHECK (
         balance_after = balance_before + CASE

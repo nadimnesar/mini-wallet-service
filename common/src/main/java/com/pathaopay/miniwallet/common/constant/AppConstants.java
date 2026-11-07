@@ -14,8 +14,6 @@ public final class AppConstants {
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
     public static final long POISHA_PER_BDT = 100;
-    public static final long MIN_AMOUNT_POISHA = 100;
-    public static final long MAX_AMOUNT_POISHA = 2_500_000;
     /** Owner (user_id) shared by every system account; no customer wallet can use it. Seeded by Liquibase. */
     public static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000002");
     /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */
@@ -69,10 +67,6 @@ public final class AppConstants {
     public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
 
     public static final String AMOUNT_REQUIRED = "amount is required";
-    public static final String AMOUNT_MIN = "amount must be at least " + MIN_AMOUNT_POISHA
-            + " poisha (" + MIN_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
-    public static final String AMOUNT_MAX = "amount must be at most " + MAX_AMOUNT_POISHA
-            + " poisha (" + MAX_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
 
     public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
 
