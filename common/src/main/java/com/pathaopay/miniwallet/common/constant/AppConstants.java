@@ -58,5 +58,6 @@ public final class AppConstants {
 
     public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
 
+    public static final String NOTE_NO_NUL = "note must not contain the NUL character";
     public static final String NOTE_SIZE = "note must be 1 to " + NOTE_MAX_LENGTH + " characters";
 }

@@ -24,6 +24,7 @@ public record TransferRequest(
         Long amount,
 
         @Size(min = 1, max = AppConstants.NOTE_MAX_LENGTH, message = AppConstants.NOTE_SIZE)
+        @Pattern(regexp = "[^\\u0000]*", message = AppConstants.NOTE_NO_NUL)
         @JsonProperty("note")
         String note
 ) {}
