@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.messaging;
+package com.pathaopay.miniwallet.listener;
 
 import com.pathaopay.miniwallet.common.constant.MessagingConstants;
 import com.pathaopay.miniwallet.service.TransactionService;
