@@ -13,7 +13,6 @@ public final class AppConstants {
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
-    public static final long POISHA_PER_BDT = 100;
     /** Phone numbers of the seeded system accounts. Phones are unique, so no other wallet can take one. */
     public static final String REVENUE_WALLET_PHONE = "01000000001";
     public static final String GATEWAY_CLEARING_WALLET_PHONE = "01000000003";
