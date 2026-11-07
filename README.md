@@ -37,6 +37,10 @@ docker compose up
 Connection settings are under `spring.datasource.*` in `application.properties`; override them with `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`.
 After editing an applied Liquibase changeset, or when the PostgreSQL major version changes, reset the data with `docker compose down -v`.
 
+#### Health
+
+Actuator exposes only the health probes (no other actuator endpoint, no component details): `GET /actuator/health/liveness` (the process is up) and `GET /actuator/health/readiness` (the database answers). Readiness deliberately ignores RabbitMQ: with the broker down the service still accepts add-money (the outbox keeps the request), so it should stay in rotation. `docker compose` uses the readiness probe as the `app` healthcheck.
+
 #### RabbitMQ
 
 `docker compose up` also starts RabbitMQ 4 (`rabbitmq`, AMQP on host port `5672`, management UI on <http://localhost:15672>, user and password `miniwallet`). Add-money is asynchronous and needs it. Override the connection with `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` and `RABBITMQ_PASSWORD`; the retry settings are under `miniwallet.messaging.add-money.*` in `application.properties`.
