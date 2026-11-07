@@ -183,31 +183,6 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
-  /api/v1/transactions:
-    get:
-      summary: List transactions across wallets, or of one wallet with phone
-      operationId: listTransactions
-      tags: [Transactions]
-      parameters:
-        - { name: phone, in: query, schema: { type: string, example: '01712345678', description: Wallet phone number in any accepted format } }
-        - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
-        - { name: from, in: query, schema: { type: string, format: date-time } }
-        - { name: to, in: query, schema: { type: string, format: date-time } }
-        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
-        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
-      responses:
-        '200':
-          description: One page of transactions
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/TransactionPageResponse' }
-        '400':
-          description: VALIDATION_ERROR, INVALID_ARGUMENT or INVALID_DATE_RANGE
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '404': { $ref: '#/components/responses/Error' }
-
   /api/v1/transactions/{transactionId}:
     get:
       summary: Get one transaction with all of its ledger entries

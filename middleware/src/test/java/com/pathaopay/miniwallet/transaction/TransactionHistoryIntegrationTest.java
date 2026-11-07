@@ -89,9 +89,9 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void filtersByDateRange() {
-        assertEquals(5, get("/api/v1/transactions?phone=" + alice + "&from=2000-01-01T00:00:00Z&to=2999-01-01T00:00:00Z")
+        assertEquals(5, get("/api/v1/wallets/" + alice + "/transactions?from=2000-01-01T00:00:00Z&to=2999-01-01T00:00:00Z")
                 .get("total_items").asLong());
-        assertEquals(0, get("/api/v1/transactions?phone=" + alice + "&to=2000-01-01T00:00:00Z")
+        assertEquals(0, get("/api/v1/wallets/" + alice + "/transactions?to=2000-01-01T00:00:00Z")
                 .get("total_items").asLong());
     }
 
@@ -159,12 +159,6 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void transactionsEndpointListsAcrossWalletsWhenNoWalletGiven() {
-        // alice: add-money, 2 x (out + fee); bob: 2 in; revenue: 2 fees in; clearing: 1 debit
-        assertEquals(10, get("/api/v1/transactions").get("total_items").asLong());
-    }
-
-    @Test
     void getsOneTransaction() {
         JsonNode entry = get("/api/v1/wallets/" + alice + "/transactions?type=ADD_MONEY").get("items").get(0);
         String id = entry.get("transaction_id").asString();
@@ -203,10 +197,10 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
         assertError("/api/v1/transactions/not-a-uuid", 400, "INVALID_ARGUMENT");
         assertError("/api/v1/wallets/01999999999/transactions", 404, "WALLET_NOT_FOUND");
         assertError("/api/v1/wallets/not-a-phone/transactions", 400, "INVALID_PHONE_NUMBER");
-        assertError("/api/v1/transactions?type=BOGUS", 400, "INVALID_ARGUMENT");
-        assertError("/api/v1/transactions?page=0", 400, "VALIDATION_ERROR");
-        assertError("/api/v1/transactions?page_size=101", 400, "VALIDATION_ERROR");
-        assertError("/api/v1/transactions?from=2999-01-01T00:00:00Z&to=2000-01-01T00:00:00Z", 400, "INVALID_DATE_RANGE");
+        assertError("/api/v1/wallets/" + alice + "/transactions?type=BOGUS", 400, "INVALID_ARGUMENT");
+        assertError("/api/v1/wallets/" + alice + "/transactions?page=0", 400, "VALIDATION_ERROR");
+        assertError("/api/v1/wallets/" + alice + "/transactions?page_size=101", 400, "VALIDATION_ERROR");
+        assertError("/api/v1/wallets/" + alice + "/transactions?from=2999-01-01T00:00:00Z&to=2000-01-01T00:00:00Z", 400, "INVALID_DATE_RANGE");
     }
 
     // ---- helpers -------------------------------------------------------------------------------
