@@ -35,6 +35,19 @@ Guidance for Claude Code when working in this repository.
   - a gateway_ref credits only once (unique on `transactions`)
 - To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. Add-money (run by the worker, see below) writes two legs (`GATEWAY_CLEARING` debit on the clearing asset + `ADD_MONEY` credit on the customer) under one `ADD_MONEY` transaction (its id is the response `transaction_id`). A transfer writes four legs (`TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver, `FEE_IN` on the revenue account) under one `TRANSFER` transaction (its id is the `transfer_id`); the flat fee is read from the `fees` table (seeded by Liquibase changeset `005`, edit the row to change it; the single-transaction limit is read from the `limits` table, changeset `006`, and for a transfer it applies to `amount + fee`; a replay returns the fee of the original `FEE_OUT` leg), and the revenue and clearing accounts are locked in every transfer/add-money (a deliberate hot row). Never UPDATE or DELETE ledger rows. Tests that insert raw rows must insert the transaction and all its balanced entries in one statement (a data-modifying CTE); the test reset truncates both tables.
 
+## Service layer layout
+
+- `services` is packaged by role under `com.pathaopay.miniwallet.service`:
+  - `service`: the public interfaces (`TransactionService`, `WalletService`); middleware and tests depend only on these;
+  - `service.impl`: `DefaultTransactionService` (accept add-money, transfer, history) and `DefaultWalletService`, which only orchestrate;
+  - `service.addmoney`: `AddMoneyProcessor` (the worker: verify the payment, credit, retry) and `AddMoneyDispatcher` (outbox relay);
+  - `service.idempotency`: `IdempotentExecutor` (Idempotency-Key claim/replay, request fingerprint);
+  - `service.ledger`: `LedgerPoster` (wallet locks in ascending id order, per-wallet `Chain` that appends legs);
+  - `service.rules`: `TransactionRules` (limits, customer-wallet and duplicate-gateway_ref checks);
+  - `service.mapper`: `TransactionResponses` (response building and replay rebuilders).
+  Put new shared logic in the matching package, not back into `DefaultTransactionService`.
+- The two history endpoints share `TransactionHistoryParams` (middleware): filters and paging with their validation. A parameter that cannot be converted (bad enum or date) is `INVALID_ARGUMENT` via `GlobalExceptionHandler`.
+
 ## Asynchronous add-money (RabbitMQ)
 
 - `POST /wallets/add-money` only accepts: in ONE idempotent transaction (see below) it checks limits, wallet and gateway_ref and inserts a `PENDING` row into `add_money_requests` (changelog `007`), then answers `202` with `request_id`. The idempotency `resource_id` is that request id, so a replay returns the request's current status. Status is read with `GET /wallets/add-money/{request_id}`.
@@ -45,7 +58,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Idempotent endpoints (add-money, transfers)
 
-- Follow `DefaultTransactionService.addMoney` / `transfer`. In ONE `TransactionTemplate` transaction: `idempotencyRepository.tryClaim` (blocks on a concurrent claim of the same key), do the work, then `completeWithResource` / `completeWithError`. If the key is already used, replay: different request hash → `IDEMPOTENCY_KEY_REUSED`, otherwise rebuild the response from the stored resource or re-raise the stored error (`ReplayedFailureException`).
+- Follow `DefaultTransactionService.addMoney` / `transfer`, which run their work through `IdempotentExecutor.execute` (the whole engine lives there; the request fingerprint is `IdempotentExecutor.fingerprint`). In ONE `TransactionTemplate` transaction it does `idempotencyRepository.tryClaim` (blocks on a concurrent claim of the same key), do the work, then `completeWithResource` / `completeWithError`. If the key is already used, replay: different request hash → `IDEMPOTENCY_KEY_REUSED`, otherwise rebuild the response from the stored resource or re-raise the stored error (`ReplayedFailureException`).
 - Store only deterministic failures. Exceptions with `isRetryable() == true` (e.g. `PaymentGatewayException`) must propagate so the claim rolls back. (Add-money no longer calls the gateway inside this transaction: its retryable failures are handled by the worker, see above.)
 - HTTP status is mapped from the error code in `GlobalExceptionHandler.STATUS_BY_ERROR_CODE`, so replayed errors keep their status. Add new error codes there. A failure that only the add-money worker produces (declined, mismatch, retries exhausted) is not an HTTP status of the POST: it is stored on the request (`error_code`).
 
