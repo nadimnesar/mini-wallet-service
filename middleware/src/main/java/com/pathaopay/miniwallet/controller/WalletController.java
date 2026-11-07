@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.controller;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.dto.request.*;
 import com.pathaopay.miniwallet.dto.response.*;
 import com.pathaopay.miniwallet.service.TransactionService;
@@ -44,7 +45,7 @@ public class WalletController {
 
     @PostMapping("/add-money")
     public ResponseEntity<AddMoneyStatusResponse> addMoney(
-            @RequestHeader(name = "Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
+            @RequestHeader(name = AppConstants.IDEMPOTENCY_KEY_HEADER) @NotBlank @Size(max = 255) String idempotencyKey,
             @RequestBody @Valid AddMoneyRequest request) {
         AddMoneyStatusResponse response = transactionService.addMoney(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
