@@ -44,7 +44,7 @@ paths:
         - name: phone
           in: path
           required: true
-          schema: { type: string, description: 'Wallet phone number in any accepted format' }
+          schema: { type: string, example: '01712345678', description: 'Wallet phone number in any accepted format' }
       responses:
         '200':
           description: Wallet found
@@ -63,7 +63,7 @@ paths:
         - name: phone
           in: path
           required: true
-          schema: { type: string, description: 'Wallet phone number in any accepted format' }
+          schema: { type: string, example: '01712345678', description: 'Wallet phone number in any accepted format' }
       responses:
         '200':
           description: Balance of the wallet, from its latest ledger entry
@@ -168,7 +168,7 @@ paths:
       operationId: listLedgerEntries
       tags: [Wallets]
       parameters:
-        - { name: phone, in: path, required: true, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: phone, in: path, required: true, schema: { type: string, example: '01712345678', description: Wallet phone number in any accepted format } }
         - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
@@ -189,7 +189,7 @@ paths:
       operationId: listTransactions
       tags: [Transactions]
       parameters:
-        - { name: phone, in: query, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: phone, in: query, schema: { type: string, example: '01712345678', description: Wallet phone number in any accepted format } }
         - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
