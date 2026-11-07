@@ -80,6 +80,23 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aStuckLockOnTheRevenueRowAnswers503AndTheSameKeyCanBeRetried() throws Exception {
+        long before = jdbcClient.sql("SELECT count(*) FROM " + Transactions.TABLE).query(Long.class).single();
+        try (AutoCloseable lock = holdRowLock(AppConstants.REVENUE_WALLET_ID)) {
+            Response busy = transfer("key-1", alice, bob, 10000, null);
+
+            assertError(busy, 503, "SERVICE_BUSY");
+        }
+        assertEquals(50000, balance(alice));
+        assertEquals(before, jdbcClient.sql("SELECT count(*) FROM " + Transactions.TABLE).query(Long.class).single());
+
+        Response retry = transfer("key-1", alice, bob, 10000, null);
+
+        assertEquals(201, retry.status());
+        assertEquals(39500, balance(alice));
+    }
+
+    @Test
     void sameKeyAndBodyReplaysOriginalResponse() {
         Response first = transfer("key-1", alice, bob, 10000, "Lunch");
         Response replay = transfer("key-1", alice, bob, 10000, "Lunch");

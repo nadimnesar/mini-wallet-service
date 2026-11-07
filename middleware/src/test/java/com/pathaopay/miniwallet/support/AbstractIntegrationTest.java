@@ -76,6 +76,9 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // A short lock timeout keeps the lock-contention tests fast (production: 10 s).
+        registry.add("spring.datasource.hikari.data-source-properties.options",
+                () -> "-c lock_timeout=2000 -c idle_in_transaction_session_timeout=60000");
         registry.add("spring.rabbitmq.host", RABBITMQ::getHost);
         registry.add("spring.rabbitmq.port", () -> RABBITMQ.getMappedPort(5672));
         registry.add(MessagingConstants.PROPERTIES_PREFIX + ".retry-delays", () -> "300ms,300ms");
@@ -93,6 +96,27 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected TransactionService transactionService;
+
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
+    /**
+     * Locks a wallet row (SELECT ... FOR UPDATE) from a separate transaction, like a stuck money movement would.
+     * Close the result to roll it back and release the lock.
+     */
+    protected AutoCloseable holdRowLock(UUID walletId) throws Exception {
+        java.sql.Connection connection = dataSource.getConnection();
+        connection.setAutoCommit(false);
+        try (var statement = connection.prepareStatement(
+                "SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = ? FOR UPDATE")) {
+            statement.setObject(1, walletId);
+            statement.execute();
+        }
+        return () -> {
+            connection.rollback();
+            connection.close();
+        };
+    }
 
     @Autowired
     private RabbitAdmin rabbitAdmin;

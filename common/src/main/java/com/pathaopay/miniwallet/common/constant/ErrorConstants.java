@@ -37,6 +37,7 @@ public final class ErrorConstants {
         public static final String UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE";
         public static final String NOT_ACCEPTABLE = "NOT_ACCEPTABLE";
         public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
+        public static final String SERVICE_BUSY = "SERVICE_BUSY";
     }
 
     /** Human-readable error messages returned in {@code error.message}. */
@@ -91,6 +92,7 @@ public final class ErrorConstants {
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNSUPPORTED_MEDIA_TYPE = "Content-Type is not supported, use application/json";
         public static final String NOT_ACCEPTABLE = "This API only produces application/json";
+        public static final String SERVICE_BUSY = "The service is busy. Please retry shortly.";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
     }

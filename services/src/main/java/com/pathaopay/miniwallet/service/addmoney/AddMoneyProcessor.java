@@ -11,6 +11,7 @@ import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentDeclinedException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentPendingException;
+import com.pathaopay.miniwallet.common.util.LockTimeouts;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.model.AddMoneyRequestRecord;
 import com.pathaopay.miniwallet.model.LedgerEntry;
@@ -80,14 +81,30 @@ public class AddMoneyProcessor {
         try {
             processing = verifyThenSettle(requestId);
         } catch (RuntimeException e) {
-            log.error("Unexpected error while processing add-money request: requestId={}", requestId, e);
-            processing = transactionTemplate.execute(status -> settleUnexpectedFailure(requestId));
+            if (LockTimeouts.isLockTimeout(e)) {
+                processing = parkAfterLockTimeout(requestId, e);
+            } else {
+                log.error("Unexpected error while processing add-money request: requestId={}", requestId, e);
+                processing = transactionTemplate.execute(status -> settleUnexpectedFailure(requestId));
+            }
         }
         if (processing.retryAfterAttempt() > 0) {
             addMoneyQueueClient.scheduleRetry(requestId, processing.retryAfterAttempt());
         } else if (processing.deadLetterReason() != null) {
             addMoneyQueueClient.deadLetter(requestId, processing.deadLetterReason());
         }
+    }
+
+    /**
+     * A row lock was not granted within the database lock_timeout: pure contention on the hot rows, not a fault of the
+     * request. The transaction rolled back, so it is parked again on the retry queue WITHOUT counting an attempt;
+     * counting it would let contention alone fail a request the customer has already paid.
+     */
+    private Processing parkAfterLockTimeout(UUID requestId, RuntimeException e) {
+        log.warn("Add-money request hit the lock timeout, parked again without counting an attempt: requestId={}: {}",
+                requestId, e.getMessage());
+        int attempts = addMoneyRequestRepository.findById(requestId).map(AddMoneyRequestRecord::attempts).orElse(0);
+        return Processing.retry(Math.max(1, attempts));
     }
 
     private Processing verifyThenSettle(UUID requestId) {

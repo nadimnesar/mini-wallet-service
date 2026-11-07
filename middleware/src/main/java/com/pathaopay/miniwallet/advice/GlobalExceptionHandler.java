@@ -4,9 +4,12 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
+import com.pathaopay.miniwallet.common.util.LockTimeouts;
 import com.pathaopay.miniwallet.dto.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +51,8 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.IDEMPOTENCY_KEY_REUSED, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.PAYMENT_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY),
-            Map.entry(ErrorCode.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY));
+            Map.entry(ErrorCode.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY),
+            Map.entry(ErrorCode.SERVICE_BUSY, HttpStatus.SERVICE_UNAVAILABLE));
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
@@ -156,6 +160,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMediaTypeNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
         return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).contentType(MediaType.APPLICATION_JSON)
                 .body(ErrorResponse.of(ErrorCode.NOT_ACCEPTABLE, ErrorMessage.NOT_ACCEPTABLE));
+    }
+
+    /** A row lock was not granted within the database lock_timeout; nothing was written, so a retry is safe. */
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ErrorResponse> handleDataAccess(DataAccessException ex) {
+        if (!LockTimeouts.isLockTimeout(ex)) {
+            return handleGenericException(ex);
+        }
+        log.warn("Row lock timeout: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .body(ErrorResponse.of(ErrorCode.SERVICE_BUSY, ErrorMessage.SERVICE_BUSY));
     }
 
     @ExceptionHandler(Exception.class)

@@ -539,6 +539,22 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aLockTimeoutInTheWorkerDoesNotUseUpAnAttempt() throws Exception {
+        String requestId;
+        // Hold the clearing row for longer than one lock timeout, and across more timeouts than there are attempts.
+        try (AutoCloseable lock = holdRowLock(AppConstants.GATEWAY_CLEARING_WALLET_ID)) {
+            requestId = addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA").body().get("request_id").asString();
+            Thread.sleep(2000L * (ADD_MONEY_MAX_ATTEMPTS + 1) + 1000);
+        }
+
+        JsonNode done = awaitFinal(requestId);
+
+        assertEquals("COMPLETED", done.get("status").asString());
+        assertEquals(1, done.get("attempts").asInt());
+        assertEquals(50000, balanceOf(phone));
+    }
+
+    @Test
     void aRequestThatAlwaysCrashesTheWorkerIsCountedAndEndsFailedOnTheDeadLetterQueue() {
         jdbcClient.sql("CREATE FUNCTION test_reject_transactions() RETURNS trigger LANGUAGE plpgsql AS $$ "
                 + "BEGIN RAISE EXCEPTION 'simulated bug'; END; $$").update();

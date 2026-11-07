@@ -112,6 +112,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: SERVICE_BUSY (a row lock was not granted within the database lock timeout; nothing was written, retry with the same key). Carries Retry-After.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /api/v1/wallets/add-money/{request_id}:
     get:
@@ -158,6 +163,11 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422':
           description: INSUFFICIENT_BALANCE (balance must cover amount + fee), SAME_WALLET_TRANSFER, SYSTEM_WALLET_NOT_ALLOWED (sender or receiver is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: SERVICE_BUSY (a row lock was not granted within the database lock timeout; nothing was written, retry with the same key). Carries Retry-After.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
