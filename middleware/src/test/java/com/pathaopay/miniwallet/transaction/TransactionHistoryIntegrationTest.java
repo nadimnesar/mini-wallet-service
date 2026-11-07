@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.dto.request.TransferRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
@@ -42,8 +43,8 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         api = RestClient.create("http://localhost:" + port);
-        alice = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000001")).phone();
-        bob = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000002")).phone();
+        alice = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000001", WalletType.LIABILITY)).phone();
+        bob = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000002", WalletType.LIABILITY)).phone();
         topUp(alice, 50000L, "k1");
         transferId = UUID.fromString(transactionService
                 .transfer(new TransferRequest(alice, bob, 10000L, "Lunch"), "k2").transferId().toString());
@@ -113,7 +114,7 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void aWalletsHistoryFollowsItsLedgerChainEvenWhenTimestampsDisagree() {
-        String carol = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000003")).phone();
+        String carol = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000003", WalletType.LIABILITY)).phone();
         UUID carolId = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", carol)
                 .query(UUID.class).single();
         // Entry 1 is stamped later than entry 2, as when a slow add-money starts before a transfer that commits first.

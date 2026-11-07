@@ -20,7 +20,6 @@ public final class ErrorConstants {
         public static final String WALLET_NOT_FOUND = "WALLET_NOT_FOUND";
         public static final String TRANSACTION_NOT_FOUND = "TRANSACTION_NOT_FOUND";
         public static final String ADD_MONEY_REQUEST_NOT_FOUND = "ADD_MONEY_REQUEST_NOT_FOUND";
-        public static final String DUPLICATE_WALLET = "DUPLICATE_WALLET";
         public static final String DUPLICATE_PHONE = "DUPLICATE_PHONE";
         public static final String DUPLICATE_GATEWAY_REF = "DUPLICATE_GATEWAY_REF";
         public static final String PAYMENT_DECLINED = "PAYMENT_DECLINED";
@@ -54,8 +53,6 @@ public final class ErrorConstants {
         public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with phone: ";
-        public static final String RESERVED_USER_ID = "user_id is reserved for system accounts and cannot be used";
-        public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String ADD_MONEY_REQUEST_NOT_FOUND_PREFIX = "Add-money request not found with id: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
@@ -90,7 +87,6 @@ public final class ErrorConstants {
         public static final String RETRIES_EXHAUSTED = "%s (gave up after %d attempts)";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = AppConstants.PHONE_FORMAT;
-        public static final String CUSTOMER_PHONE_FORMAT = AppConstants.CUSTOMER_PHONE_FORMAT;
         /** Format with the HTTP method. */
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNSUPPORTED_MEDIA_TYPE = "Content-Type is not supported, use application/json";

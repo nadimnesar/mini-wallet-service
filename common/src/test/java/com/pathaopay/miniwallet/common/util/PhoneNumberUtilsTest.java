@@ -30,15 +30,10 @@ class PhoneNumberUtilsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"01311000001", "1411000001", "+8801511000001", "01611000001", "01711000001", "01811000001", "01911000001"})
-    void customerNumbersNeedAnAssignedOperatorPrefix(String input) {
-        assertEquals(PhoneNumberUtils.normalize(input), PhoneNumberUtils.normalizeCustomer(input));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"01011000001", "01111000001", "01211000001", "1011000001", "+8801211000001", "01000000001", "12345"})
-    void customerNumbersRejectUnassignedPrefixes(String input) {
-        assertThrows(InvalidPhoneNumberException.class, () -> PhoneNumberUtils.normalizeCustomer(input));
+    @ValueSource(strings = {"01011000001", "01111000001", "01211000001", "01311000001", "01911000001", "1011000001", "+8801011000001"})
+    void everyOperatorPrefixIsAValidNumber(String input) {
+        assertTrue(PhoneNumberUtils.isValid(input));
+        assertEquals(11, PhoneNumberUtils.normalize(input).length());
     }
 
     @Test

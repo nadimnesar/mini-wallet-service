@@ -14,17 +14,11 @@ public final class AppConstants {
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
     public static final long POISHA_PER_BDT = 100;
-    /** Owner (user_id) shared by every system account; no customer wallet can use it. Seeded by Liquibase. */
-    public static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000002");
     /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */
     public static final UUID OPERATING_EXPENSE_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000005");
     /** EQUITY account for the owners' capital; no flow posts to it yet. */
     public static final UUID OWNER_EQUITY_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000006");
-    /**
-     * Phone numbers of the system accounts. The 010 prefix is not assigned to any operator, and customer wallets
-     * can only be registered with an assigned prefix ({@link #CUSTOMER_PHONE_ACCEPTED_PATTERN}), so no customer can
-     * ever hold a system number.
-     */
+    /** Phone numbers of the seeded system accounts. Phones are unique, so no other wallet can take one. */
     public static final String REVENUE_WALLET_PHONE = "01000000001";
     public static final String GATEWAY_CLEARING_WALLET_PHONE = "01000000003";
     public static final String OPERATING_EXPENSE_WALLET_PHONE = "01000000005";
@@ -47,18 +41,17 @@ public final class AppConstants {
      * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
      */
     public static final String PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
-    /** Same formats, but only the operator prefixes in use (013-019); required to register a customer wallet. */
-    public static final String CUSTOMER_PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1[3-9]\\d{8})$";
 
     // ---- Request validation limits, patterns and messages
     public static final int NOTE_MAX_LENGTH = 255;
 
     public static final String USER_ID_REQUIRED = "user_id is required";
 
+    public static final String TYPE_REQUIRED = "type is required";
+
     public static final String PHONE_REQUIRED = "phone is required";
     public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
             + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
-    public static final String CUSTOMER_PHONE_FORMAT = PHONE_FORMAT + ", with an assigned operator prefix (013-019)";
 
     public static final String FROM_PHONE_REQUIRED = "from_phone is required";
 

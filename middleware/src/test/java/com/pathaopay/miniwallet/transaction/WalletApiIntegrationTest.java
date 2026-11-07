@@ -1,7 +1,11 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.exception.transaction.SystemWalletException;
+import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The two read endpoints: wallet details (static) and balance (derived from the ledger). */
@@ -37,7 +42,7 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         api = RestClient.create("http://localhost:" + port);
-        walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), PHONE));
+        walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), PHONE, WalletType.LIABILITY));
     }
 
     @Test
@@ -88,16 +93,81 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void reservedSystemUserIdIsAValidationErrorNotADuplicate() {
-        api.post().uri("/api/v1/wallets").contentType(MediaType.APPLICATION_JSON)
-                .body("""
-                        {"user_id": "%s", "phone": "01811000009"}""".formatted(AppConstants.SYSTEM_USER_ID))
-                .exchange((request, response) -> {
-                    JsonNode body = JSON.readTree(response.getBody());
-                    assertEquals(400, response.getStatusCode().value(), body.toString());
-                    assertEquals("VALIDATION_ERROR", body.get("error").get("code").asString());
-                    return null;
-                });
+    void walletTypeIsRequiredAndHasNoDefault() {
+        Response response = createWallet("""
+                {"user_id": "%s", "phone": "01811000009"}""".formatted(UUID.randomUUID()));
+
+        assertError(response, 400, "VALIDATION_ERROR");
+        assertEquals("type: type is required", response.body().get("error").get("message").asString());
+    }
+
+    @Test
+    void unknownWalletTypeIsRejected() {
+        Response response = createWallet(body(UUID.randomUUID(), "01811000009", "SAVINGS"));
+
+        assertError(response, 400, "INVALID_PAYLOAD");
+        assertEquals("Invalid value for field: type", response.body().get("error").get("message").asString());
+    }
+
+    @Test
+    void createsACustomerWalletOfTypeLiability() {
+        Response response = createWallet(body(UUID.randomUUID(), "01811000009", "LIABILITY"));
+
+        assertEquals(201, response.status(), response.body().toString());
+        assertEquals("LIABILITY", response.body().get("type").asString());
+        assertEquals("LIABILITY", get("/api/v1/wallets/01811000009").get("type").asString());
+    }
+
+    @Test
+    void anyUserCanCreateAWalletOfAnyType() {
+        UUID user = UUID.randomUUID();
+        int number = 10;
+        for (WalletType type : WalletType.values()) {
+            String phone = "018110000" + number++;
+            UUID owner = type == WalletType.LIABILITY ? user : UUID.randomUUID();
+            Response response = createWallet(body(owner, phone, type.name()));
+
+            assertEquals(201, response.status(), response.body().toString());
+            assertEquals(type.name(), response.body().get("type").asString());
+            assertEquals(owner.toString(), response.body().get("user_id").asString());
+            assertEquals(type.name(), get("/api/v1/wallets/" + phone).get("type").asString());
+            assertEquals(0, get("/api/v1/wallets/" + phone + "/balance").get("balance").asLong());
+        }
+    }
+
+    @Test
+    void thePhoneRuleIsTheSameForEveryTypeAnyValidBangladeshiNumber() {
+        assertEquals(201, createWallet(body(UUID.randomUUID(), "01711000077", "EXPENSE")).status());
+        assertEquals(201, createWallet(body(UUID.randomUUID(), "01011000078", "LIABILITY")).status());
+        assertEquals(201, createWallet(body(UUID.randomUUID(), "01211000079", "ASSET")).status());
+        for (String type : new String[]{"EXPENSE", "LIABILITY"}) {
+            UUID owner = UUID.randomUUID();
+            assertError(createWallet(body(owner, "12345", type)), 400, "VALIDATION_ERROR");
+        }
+    }
+
+    @Test
+    void aCustomerCannotTakeASystemWalletsNumber() {
+        assertError(createWallet(body(UUID.randomUUID(), AppConstants.REVENUE_WALLET_PHONE, "LIABILITY")), 409, "DUPLICATE_PHONE");
+    }
+
+    @Test
+    void oneUserCanOwnManyWalletsOfAnyTypeAndOnlyThePhoneIsUnique() {
+        UUID user = UUID.randomUUID();
+        assertEquals(201, createWallet(body(user, "01000000021", "ASSET")).status());
+        assertEquals(201, createWallet(body(user, "01000000022", "ASSET")).status());
+        assertEquals(201, createWallet(body(user, "01811000023", "LIABILITY")).status());
+        assertEquals(201, createWallet(body(user, "01811000024", "LIABILITY")).status());
+        assertError(createWallet(body(user, "01000000021", "EQUITY")), 409, "DUPLICATE_PHONE");
+        assertError(createWallet(body(UUID.randomUUID(), "01811000024", "LIABILITY")), 409, "DUPLICATE_PHONE");
+    }
+
+    @Test
+    void aCreatedSystemClassWalletStillCannotBeToppedUp() {
+        createWallet(body(UUID.randomUUID(), "01000000031", "REVENUE"));
+
+        assertThrows(SystemWalletException.class, () -> transactionService.addMoney(
+                new AddMoneyRequest("01000000031", 50000L, UUID.randomUUID(), PaymentMethod.VISA), "key-system"));
     }
 
     @Test
@@ -120,6 +190,25 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
                     assertEquals("NOT_ACCEPTABLE", body.get("error").get("code").asString());
                     return null;
                 });
+    }
+
+    private record Response(int status, JsonNode body) {
+    }
+
+    private static String body(UUID userId, String phone, String type) {
+        return """
+                {"user_id": "%s", "phone": "%s", "type": "%s"}""".formatted(userId, phone, type);
+    }
+
+    private Response createWallet(String json) {
+        return api.post().uri("/api/v1/wallets").contentType(MediaType.APPLICATION_JSON).body(json)
+                .exchange((request, response) -> new Response(response.getStatusCode().value(),
+                        JSON.readTree(response.getBody())));
+    }
+
+    private static void assertError(Response response, int status, String code) {
+        assertEquals(status, response.status(), response.body().toString());
+        assertEquals(code, response.body().get("error").get("code").asString());
     }
 
     private JsonNode get(String uri) {

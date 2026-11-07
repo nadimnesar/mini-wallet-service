@@ -7,6 +7,7 @@ import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +60,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         api = RestClient.create("http://localhost:" + port);
-        phone = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001")).phone();
+        phone = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001", WalletType.LIABILITY)).phone();
         walletId = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", phone)
                 .query(UUID.class).single();
     }

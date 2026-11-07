@@ -182,7 +182,6 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
             assertEquals(0, balance(system));
         }
         assertEquals(50000, balance(AppConstants.GATEWAY_CLEARING_WALLET_PHONE));
-        assertEquals(AppConstants.SYSTEM_USER_ID, walletService.getWallet(REVENUE).userId());
     }
 
     @Test
@@ -342,7 +341,7 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String wallet(String phone) {
-        return walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), phone)).phone();
+        return walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), phone, WalletType.LIABILITY)).phone();
     }
 
     private void fund(String phone, long amount) {

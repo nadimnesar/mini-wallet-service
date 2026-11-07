@@ -5,6 +5,7 @@ import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,8 +41,8 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void createWallets() {
-        alice = idOf(walletService.createWallet(new CreateWalletRequest(user("u_alice"), "01711000001")).phone());
-        bob = idOf(walletService.createWallet(new CreateWalletRequest(user("u_bob"), "01811000002")).phone());
+        alice = idOf(walletService.createWallet(new CreateWalletRequest(user("u_alice"), "01711000001", WalletType.LIABILITY)).phone());
+        bob = idOf(walletService.createWallet(new CreateWalletRequest(user("u_bob"), "01811000002", WalletType.LIABILITY)).phone());
     }
 
     @Test
@@ -237,29 +238,31 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void walletsAreOneOfTheFiveAccountClasses() {
-        assertRejected(() -> insertWallet("USER", AppConstants.SYSTEM_USER_ID, "01911000001"));
-        insertWallet("ASSET", AppConstants.SYSTEM_USER_ID, "01911000002");
+        assertRejected(() -> insertWallet("USER", UUID.randomUUID(), "01911000001"));
+        insertWallet("ASSET", UUID.randomUUID(), "01911000002");
     }
 
     @Test
     void everyWalletNeedsAUniqueValidPhone() {
-        assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, null));
-        assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "12345"));
-        assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01711000001"));
-        assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, AppConstants.REVENUE_WALLET_PHONE));
-        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01011000001"));
-        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01211000001"));
+        assertRejected(() -> insertWallet("EXPENSE", UUID.randomUUID(), null));
+        assertRejected(() -> insertWallet("EXPENSE", UUID.randomUUID(), "12345"));
+        assertRejected(() -> insertWallet("EXPENSE", UUID.randomUUID(), "01711000001"));
+        assertRejected(() -> insertWallet("EXPENSE", UUID.randomUUID(), AppConstants.REVENUE_WALLET_PHONE));
+        insertWallet("LIABILITY", UUID.randomUUID(), "01011000001");
+        insertWallet("LIABILITY", UUID.randomUUID(), "01211000001");
         insertWallet("LIABILITY", UUID.randomUUID(), "01311000001");
-        insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01011000009");
-        insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01911000003");
+        insertWallet("EXPENSE", UUID.randomUUID(), "01011000009");
+        insertWallet("EXPENSE", UUID.randomUUID(), "01911000003");
     }
 
     @Test
-    void customerWalletsBelongToACustomerAndSystemAccountsToTheSystemUser() {
-        assertRejected(() -> insertWallet("LIABILITY", AppConstants.SYSTEM_USER_ID, "01911000004"));
-        assertRejected(() -> insertWallet("EXPENSE", UUID.randomUUID(), "01911000005"));
-        insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01911000006");
-        insertWallet("EQUITY", AppConstants.SYSTEM_USER_ID, "01911000007");
+    void oneUserCanOwnManyWalletsOfAnyTypeAndOnlyThePhoneIsUnique() {
+        UUID user = UUID.randomUUID();
+        insertWallet("LIABILITY", user, "01911000004");
+        insertWallet("LIABILITY", user, "01911000005");
+        insertWallet("EXPENSE", user, "01911000006");
+        insertWallet("EQUITY", user, "01911000007");
+        assertRejected(() -> insertWallet("ASSET", user, "01911000004"));
     }
 
     private void insertWallet(String type, UUID userId, String phone) {

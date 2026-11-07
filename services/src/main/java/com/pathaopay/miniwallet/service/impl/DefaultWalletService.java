@@ -1,10 +1,7 @@
 package com.pathaopay.miniwallet.service.impl;
 
-import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
-import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
-import com.pathaopay.miniwallet.common.exception.wallet.ReservedUserIdException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
@@ -12,6 +9,7 @@ import com.pathaopay.miniwallet.dto.response.BalanceResponse;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.response.WalletResponse;
 import com.pathaopay.miniwallet.model.enums.Currency;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.WalletBalance;
 import com.pathaopay.miniwallet.repository.WalletRepository;
@@ -33,35 +31,29 @@ public class DefaultWalletService implements WalletService {
     @Override
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
-        String phone = PhoneNumberUtils.normalizeCustomer(request.phone());
-        if (AppConstants.SYSTEM_USER_ID.equals(request.userId())) {
-            log.info("Wallet creation rejected, user_id is reserved for system accounts");
-            throw new ReservedUserIdException();
-        }
-        return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT)
+        // The phone is the only constraint: no rule on user_id or on who may create which type for now (role-based
+        // permissions will decide that later).
+        String phone = PhoneNumberUtils.normalize(request.phone());
+        return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT, request.type())
                 .map(DefaultWalletService::toResponse)
                 .map(wallet -> {
-                    log.info("Wallet created: phone={} userId={}", wallet.phone(), wallet.userId());
+                    log.info("Wallet created: phone={} userId={} type={}", wallet.phone(), wallet.userId(), wallet.type());
                     return wallet;
                 })
                 .orElseThrow(() -> conflictFor(request.userId(), phone));
     }
 
     /**
-     * The insert was skipped because a unique constraint matched. Runs in the same read-write
-     * transaction on the primary, so the conflicting (committed) wallet is visible here.
+     * The insert was skipped because the phone is taken. Runs in the same read-write transaction, so the conflicting
+     * (committed) wallet is visible here.
      */
     private RuntimeException conflictFor(UUID userId, String phone) {
-        if (walletRepository.existsByUserId(userId)) {
-            log.info("Wallet creation rejected, user already has a wallet: userId={}", userId);
-            return new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + userId);
-        }
         if (walletRepository.existsByPhone(phone)) {
             log.info("Wallet creation rejected, phone already in use: userId={}", userId);
             return new DuplicatePhoneException(ErrorMessage.DUPLICATE_PHONE_PREFIX + phone);
         }
         // Only reachable on a generated wallet-id collision (UUIDv7 has 74 random bits per millisecond).
-        return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
+        return new IllegalStateException("Wallet insert skipped without a phone conflict");
     }
 
     @Override
