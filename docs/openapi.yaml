@@ -164,7 +164,7 @@ paths:
 
   /api/v1/wallets/{phone}/transactions:
     get:
-      summary: List a wallet's transactions, newest first
+      summary: List a wallet's transactions, newest first (in ledger order)
       operationId: listLedgerEntries
       tags: [Wallets]
       parameters:
@@ -367,7 +367,7 @@ components:
         balance_after: { type: integer, format: int64 }
         counterparty_wallet_id: { type: string, format: uuid }
         counterparty_phone: { type: string, example: '01712345678' }
-        created_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time, description: When the entry was posted (after the wallet locks were taken), not when the request started }
 
     TransactionDetailResponse:
       type: object

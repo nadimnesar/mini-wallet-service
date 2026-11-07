@@ -13,11 +13,15 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Transaction history and detail endpoints, reading the ledger written by add-money and transfers. */
 class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
@@ -105,6 +109,52 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
         assertEquals(3, first.get("total_pages").asInt());
         assertEquals(List.of("ADD_MONEY"), types(second));
         assertEquals(5, second.get("total_items").asLong());
+    }
+
+    @Test
+    void aWalletsHistoryFollowsItsLedgerChainEvenWhenTimestampsDisagree() {
+        String carol = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000003")).phone();
+        UUID carolId = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", carol)
+                .query(UUID.class).single();
+        // Entry 1 is stamped later than entry 2, as when a slow add-money starts before a transfer that commits first.
+        postTopUp(carolId, 1, 10000, 0, Instant.parse("2026-01-02T00:00:00Z"));
+        postTopUp(carolId, 2, 5000, 10000, Instant.parse("2026-01-01T00:00:00Z"));
+
+        JsonNode page = get("/api/v1/wallets/" + carol + "/transactions");
+
+        assertEquals(List.of(15000L, 10000L), balancesAfter(page), "newest ledger entry first, balances never jump back");
+    }
+
+    @Test
+    void entriesAreStampedWhenTheyAreWrittenSoTimestampsFollowTheChain() {
+        long outOfOrder = jdbcClient.sql("SELECT count(*) FROM (SELECT created_at, lag(created_at) OVER ("
+                + "PARTITION BY wallet_id ORDER BY entry_no) AS previous FROM ledger_entries) e "
+                + "WHERE previous > created_at").query(Long.class).single();
+
+        assertEquals(0, outOfOrder);
+        assertTrue(jdbcClient.sql("SELECT count(*) FROM ledger_entries").query(Long.class).single() > 0);
+    }
+
+    /** A top-up journal inserted with an explicit timestamp (a data-modifying CTE, so the balance check sees all of it). */
+    private void postTopUp(UUID walletId, long entryNo, long amount, long before, Instant at) {
+        UUID clearing = AppConstants.GATEWAY_CLEARING_WALLET_ID;
+        long[] latest = jdbcClient.sql("SELECT entry_no, balance_after FROM ledger_entries WHERE wallet_id = :w "
+                        + "ORDER BY entry_no DESC LIMIT 1").param("w", clearing)
+                .query((rs, i) -> new long[]{rs.getLong(1), rs.getLong(2)}).single();
+        UUID transactionId = UUID.randomUUID();
+        jdbcClient.sql("WITH tx AS (INSERT INTO transactions (id, type, amount, gateway_ref, payment_method, created_at) "
+                        + "VALUES (:tx, 'ADD_MONEY', :amount, :tx, 'VISA', :at)) "
+                        + "INSERT INTO ledger_entries (id, wallet_id, wallet_type, entry_no, type, direction, amount, "
+                        + "balance_before, balance_after, counterparty_wallet_id, transaction_id, created_at) VALUES "
+                        + "(:id1, :w, 'LIABILITY', :n, 'ADD_MONEY', 'CREDIT', :amount, :before, :after, :clearing, :tx, :at), "
+                        + "(:id2, :clearing, 'ASSET', :cn, 'GATEWAY_CLEARING', 'DEBIT', :amount, :cbefore, :cafter, :w, :tx, :at)")
+                .param("tx", transactionId).param("amount", amount)
+                .param("at", OffsetDateTime.ofInstant(at, ZoneOffset.UTC))
+                .param("id1", UUID.randomUUID()).param("id2", UUID.randomUUID())
+                .param("w", walletId).param("n", entryNo).param("before", before).param("after", before + amount)
+                .param("clearing", clearing).param("cn", latest[0] + 1)
+                .param("cbefore", latest[1]).param("cafter", latest[1] + amount)
+                .update();
     }
 
     @Test
