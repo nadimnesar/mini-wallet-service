@@ -27,7 +27,7 @@ public record TransferRequest(
         @JsonProperty("amount")
         Long amount,
 
-        @Size(max = AppConstants.NOTE_MAX_LENGTH, message = AppConstants.NOTE_SIZE)
+        @Size(min = 1, max = AppConstants.NOTE_MAX_LENGTH, message = AppConstants.NOTE_SIZE)
         @JsonProperty("note")
         String note
 ) {}

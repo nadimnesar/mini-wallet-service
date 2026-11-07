@@ -80,13 +80,13 @@ public class JdbcTransactionRepository implements TransactionRepository {
 
     private static final String TRANSACTION_COLUMNS = String.join(", ",
             Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
-            Transactions.PAYMENT_METHOD, Transactions.CREATED_AT);
+            Transactions.PAYMENT_METHOD, Transactions.NOTE, Transactions.CREATED_AT);
 
     private static final String INSERT_TRANSACTION =
             "INSERT INTO " + Transactions.TABLE + " (" + String.join(", ",
                     Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
-                    Transactions.PAYMENT_METHOD) + ")"
-                    + " VALUES (:id, :type, :amount, :gatewayRef, :paymentMethod)";
+                    Transactions.PAYMENT_METHOD, Transactions.NOTE) + ")"
+                    + " VALUES (:id, :type, :amount, :gatewayRef, :paymentMethod, :note)";
 
     // A concurrent request that already credited the same gateway_ref makes this insert a no-op instead of
     // aborting the database transaction.
@@ -126,6 +126,7 @@ public class JdbcTransactionRepository implements TransactionRepository {
             rs.getObject(Transactions.GATEWAY_REF, UUID.class),
             rs.getString(Transactions.PAYMENT_METHOD) == null
                     ? null : PaymentMethod.valueOf(rs.getString(Transactions.PAYMENT_METHOD)),
+            rs.getString(Transactions.NOTE),
             rs.getObject(Transactions.CREATED_AT, OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
@@ -157,7 +158,8 @@ public class JdbcTransactionRepository implements TransactionRepository {
                 .param("amount", transaction.amount())
                 .param("gatewayRef", transaction.gatewayRef(), Types.OTHER)
                 .param("paymentMethod", transaction.paymentMethod() == null ? null : transaction.paymentMethod().name(),
-                        Types.VARCHAR);
+                        Types.VARCHAR)
+                .param("note", transaction.note(), Types.VARCHAR);
     }
 
     @Override

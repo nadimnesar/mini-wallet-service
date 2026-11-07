@@ -33,6 +33,7 @@ public final class DbConstants {
         public static final String AMOUNT = "amount";
         public static final String GATEWAY_REF = "gateway_ref";
         public static final String PAYMENT_METHOD = "payment_method";
+        public static final String NOTE = "note";
         public static final String CREATED_AT = "created_at";
     }
 

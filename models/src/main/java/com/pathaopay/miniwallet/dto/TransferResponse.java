@@ -28,6 +28,9 @@ public record TransferResponse(
         @JsonProperty("fee")
         long fee,
 
+        @JsonProperty("note")
+        String note,
+
         @JsonProperty("status")
         String status,
 

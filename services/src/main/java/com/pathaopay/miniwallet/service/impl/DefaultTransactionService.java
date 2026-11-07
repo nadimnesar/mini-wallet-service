@@ -105,7 +105,7 @@ public class DefaultTransactionService implements TransactionService {
                 request.amount().toString(), request.note() == null ? "" : request.note()));
 
         return executeIdempotently(idempotencyKey, TRANSFER_OPERATION, requestHash, () -> {
-            TransferResponse response = moveMoney(from, to, request.amount());
+            TransferResponse response = moveMoney(from, to, request.amount(), request.note());
             log.info("Transferred money: transferId={} from={} to={} amount={}",
                     response.transferId(), from, to, response.amount());
             return new Created<>(response.transferId(), response);
@@ -165,7 +165,7 @@ public class DefaultTransactionService implements TransactionService {
 
         LedgerTransaction transaction = transactionRepository.insertAddMoney(new LedgerTransaction(
                         UuidGenerator.v7(), TransactionType.ADD_MONEY, request.amount(), request.gatewayRef(),
-                        request.paymentMethod(), null))
+                        request.paymentMethod(), null, null))
                 .orElseThrow(() -> duplicateGatewayRef(request.gatewayRef()));
         LedgerEntry credit = chains.get(walletId).append(transactionRepository, EntryType.ADD_MONEY,
                 request.amount(), clearingId, transaction.id());
@@ -178,7 +178,7 @@ public class DefaultTransactionService implements TransactionService {
      * Records the transfer transaction: DEBIT the sender (amount + fee) and CREDIT the receiver (amount) and the revenue
      * account (fee). Only customer wallets can send or receive.
      */
-    private TransferResponse moveMoney(String from, String to, long amount) {
+    private TransferResponse moveMoney(String from, String to, long amount, String note) {
         if (from.equals(to)) {
             throw new SameWalletTransferException(ErrorMessage.SAME_WALLET_TRANSFER);
         }
@@ -194,7 +194,7 @@ public class DefaultTransactionService implements TransactionService {
         }
 
         LedgerTransaction transaction = transactionRepository.insert(
-                new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, null));
+                new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, note, null));
         UUID id = transaction.id();
         LedgerEntry out = sender.append(transactionRepository, EntryType.TRANSFER_OUT, amount, receiverWallet.id(), id);
         sender.append(transactionRepository, EntryType.FEE_OUT, fee, revenue, id);
@@ -361,7 +361,7 @@ public class DefaultTransactionService implements TransactionService {
                                                          String to) {
         return new TransferResponse(transaction.id(), out.walletId(), from, out.counterpartyWalletId(), to,
                 transaction.amount(),
-                AppConstants.TRANSFER_FEE_POISHA, TRANSFER_STATUS_COMPLETED, transaction.createdAt());
+                AppConstants.TRANSFER_FEE_POISHA, transaction.note(), TRANSFER_STATUS_COMPLETED, transaction.createdAt());
     }
 
     private static TransactionItemResponse toItem(LedgerEntryView view) {
@@ -411,6 +411,6 @@ public class DefaultTransactionService implements TransactionService {
                 .map(DefaultTransactionService::toItem)
                 .toList();
         return new TransactionDetailResponse(transaction.id(), transaction.type(), transaction.amount(),
-                transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt(), entries);
+                transaction.gatewayRef(), transaction.paymentMethod(), transaction.note(), transaction.createdAt(), entries);
     }
 }

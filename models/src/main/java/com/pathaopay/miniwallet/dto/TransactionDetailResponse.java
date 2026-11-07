@@ -25,6 +25,9 @@ public record TransactionDetailResponse(
         @JsonProperty("payment_method")
         PaymentMethod paymentMethod,
 
+        @JsonProperty("note")
+        String note,
+
         @JsonProperty("created_at")
         Instant createdAt,
 
