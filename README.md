@@ -468,7 +468,7 @@ Honest list of what a production version would need:
 ```
 common/       constants, exceptions, utilities
 models/       records, enums, DTOs
-repository/   repository interfaces + jdbc/ implementations
+repository/   repository interfaces + impl/ implementations
 clients/      Liquibase changelogs, payment-gateway client, RabbitMQ topology
 services/     business logic (ledger, idempotency, add-money worker, rules)
 middleware/   REST controllers, exception handler, listener (runnable)

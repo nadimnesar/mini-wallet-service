@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.repository.jdbc;
+package com.pathaopay.miniwallet.repository.impl;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.AddMoneyRequests;
 import com.pathaopay.miniwallet.model.AddMoneyRequestRecord;
