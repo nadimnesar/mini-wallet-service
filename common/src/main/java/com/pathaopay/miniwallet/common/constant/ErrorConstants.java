@@ -50,6 +50,7 @@ public final class ErrorConstants {
         public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with phone: ";
+        public static final String RESERVED_USER_ID = "user_id is reserved for system accounts and cannot be used";
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
@@ -74,8 +75,8 @@ public final class ErrorConstants {
         public static final String PAYMENT_GATEWAY_ERROR = "%s payment gateway is unavailable. Please retry later.";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = AppConstants.PHONE_FORMAT;
-        /** Format with the HTTP method. */
         public static final String CUSTOMER_PHONE_FORMAT = AppConstants.CUSTOMER_PHONE_FORMAT;
+        /** Format with the HTTP method. */
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";

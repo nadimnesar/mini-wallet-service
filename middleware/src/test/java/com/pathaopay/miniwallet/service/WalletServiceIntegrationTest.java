@@ -6,6 +6,7 @@ import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
 import com.pathaopay.miniwallet.common.exception.wallet.InvalidPhoneNumberException;
+import com.pathaopay.miniwallet.common.exception.wallet.ReservedUserIdException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.WalletResponse;
@@ -57,7 +58,6 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Test
     void rejectsUnassignedOperatorPrefixes() {
         for (String phone : List.of("01011000001", "01111000001", "01211000001", "1011000001", "+8801011000001")) {
             assertThrows(InvalidPhoneNumberException.class,
@@ -69,8 +69,9 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
         assertEquals(2, walletCount());
     }
 
+    @Test
     void rejectsTheUserIdReservedForSystemAccounts() {
-        assertThrows(DuplicateWalletException.class,
+        assertThrows(ReservedUserIdException.class,
                 () -> walletService.createWallet(new CreateWalletRequest(AppConstants.SYSTEM_USER_ID, "01711000001")));
         assertEquals(0, walletCount());
     }

@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.transaction;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.dto.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.model.PaymentMethod;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -89,6 +91,19 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
         assertError("/api/v1/wallets/01999999999/balance", 404, "WALLET_NOT_FOUND");
         assertError("/api/v1/wallets/not-a-phone", 400, "INVALID_PHONE_NUMBER");
         assertError("/api/v1/wallets/not-a-phone/balance", 400, "INVALID_PHONE_NUMBER");
+    }
+
+    @Test
+    void reservedSystemUserIdIsAValidationErrorNotADuplicate() {
+        api.post().uri("/api/v1/wallets").contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {"user_id": "%s", "phone": "01811000009"}""".formatted(AppConstants.SYSTEM_USER_ID))
+                .exchange((request, response) -> {
+                    JsonNode body = JSON.readTree(response.getBody());
+                    assertEquals(400, response.getStatusCode().value(), body.toString());
+                    assertEquals("VALIDATION_ERROR", body.get("error").get("code").asString());
+                    return null;
+                });
     }
 
     private JsonNode get(String uri) {

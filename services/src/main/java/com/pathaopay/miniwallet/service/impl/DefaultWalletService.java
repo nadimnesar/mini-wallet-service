@@ -4,6 +4,7 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
+import com.pathaopay.miniwallet.common.exception.wallet.ReservedUserIdException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
@@ -35,7 +36,7 @@ public class DefaultWalletService implements WalletService {
         String phone = PhoneNumberUtils.normalizeCustomer(request.phone());
         if (AppConstants.SYSTEM_USER_ID.equals(request.userId())) {
             log.info("Wallet creation rejected, user_id is reserved for system accounts");
-            throw new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + request.userId());
+            throw new ReservedUserIdException();
         }
         return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT)
                 .map(DefaultWalletService::toResponse)
