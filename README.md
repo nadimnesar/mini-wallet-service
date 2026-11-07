@@ -74,7 +74,8 @@ To run a specific module's test suite:
 | Method | Path | Description | Idempotency Required |
 |--------|------|-------------|-----------------------|
 | `POST` | `/api/v1/wallets` | Create a new user wallet | No |
-| `GET`  | `/api/v1/wallets/{phone}` | Retrieve wallet details and balance | No |
+| `GET`  | `/api/v1/wallets/{phone}` | Retrieve wallet details (`wallet_id`, `user_id`, `phone`, `currency`, `type`, `created_at`) | No |
+| `GET`  | `/api/v1/wallets/{phone}/balance` | Retrieve the wallet balance and when it last changed (`updated_at`) | No |
 | `POST` | `/api/v1/wallets/add-money` | Add money to a wallet (`phone` in body) after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
 | `POST` | `/api/v1/transfers` | P2P transfer between two wallets | **Yes** (`Idempotency-Key`) |
 | `GET`  | `/api/v1/transactions` | Query transactions across/by wallet (`?phone=...`) | No |
@@ -94,7 +95,7 @@ Idempotency-Key: <unique string, max 255 chars>
 `gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet; topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`). The response (201) is built from the customer's ledger entry:
 
 ```json
-{ "transaction_id": "…", "phone": "01712345678", "added_amount": 50000, "balance": 50000,
+{ "transaction_id": "…", "wallet_id": "…", "phone": "01712345678", "added_amount": 50000, "balance": 50000,
   "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA", "created_at": "…" }
 ```
 
@@ -118,7 +119,7 @@ Idempotency-Key: <unique string, max 255 chars>
 { "from_phone": "01712345678", "to_phone": "01812345678", "amount": 10000, "note": "Lunch" }
 ```
 
-Response 201: `{ "transfer_id", "from_phone", "to_phone", "amount", "fee", "status": "COMPLETED", "created_at" }`. Every transfer costs the sender a flat fee of 500 poisha (5 BDT) on top of `amount`, so the sender needs `amount + fee`. Four ledger legs are written in one database transaction under one `TRANSFER` transaction whose id is the `transfer_id`: `TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver and `FEE_IN` on the revenue account (seeded by Liquibase, phone `01000000001`). Only customer wallets can send or receive: a system account as sender or receiver is `422 SYSTEM_WALLET_NOT_ALLOWED`; wallets are locked in ascending id order, so opposite concurrent transfers cannot deadlock. The optional `note` is validated (max 255 chars) and is part of the idempotency fingerprint, but it is not stored.
+Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", "to_phone", "amount", "fee", "status": "COMPLETED", "created_at" }`. Every transfer costs the sender a flat fee of 500 poisha (5 BDT) on top of `amount`, so the sender needs `amount + fee`. Four ledger legs are written in one database transaction under one `TRANSFER` transaction whose id is the `transfer_id`: `TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver and `FEE_IN` on the revenue account (seeded by Liquibase, phone `01000000001`). Only customer wallets can send or receive: a system account as sender or receiver is `422 SYSTEM_WALLET_NOT_ALLOWED`; wallets are locked in ascending id order, so opposite concurrent transfers cannot deadlock. The optional `note` is validated (max 255 chars) and is part of the idempotency fingerprint, but it is not stored.
 
 | Error | Status | When |
 |---|---|---|
@@ -128,7 +129,7 @@ Response 201: `{ "transfer_id", "from_phone", "to_phone", "amount", "fee", "stat
 
 ### Transaction history
 
-`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first, and carry `entry_id`, `transaction_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`. These reads are served by the replica, so a just-written entry can appear after the replication delay.
+`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first, and carry `entry_id`, `transaction_id`, `wallet_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_wallet_id`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`. These reads are served by the replica, so a just-written entry can appear after the replication delay.
 
 ### Mock payment gateway (WireMock)
 
@@ -152,7 +153,7 @@ Requests with a missing or wrong `X-Api-Key` (`visa-sandbox-key` / `mastercard-s
 
 ## 5. Architectural Assumptions & Financial Invariants
 
-1. **Phone number is the external identity**: every API identifies a wallet by its phone number (any accepted format, normalized to `01XXXXXXXXX`), which is unique per wallet and mandatory, system accounts included (they use the unassigned `010…` prefix). `wallet_id` is internal (a UUIDv7 used by the ledger and never exposed). `transaction_id` is a UUIDv7 generated by the service. The client supplies `user_id` and `gateway_ref` as UUIDs, which the problem statement's examples (`u_1001`, `GW-20261105-9981`) do not. Non-UUID values are rejected with 400.
+1. **Phone number is the external identity**: every API identifies a wallet by its phone number (any accepted format, normalized to `01XXXXXXXXX`), which is unique per wallet and mandatory, system accounts included (they use the unassigned `010…` prefix). `wallet_id` (a UUIDv7) is what the ledger uses and is shown in responses next to the phone, but requests never take it. `transaction_id` is a UUIDv7 generated by the service. The client supplies `user_id` and `gateway_ref` as UUIDs, which the problem statement's examples (`u_1001`, `GW-20261105-9981`) do not. Non-UUID values are rejected with 400.
 1. **Monetary Precision**: All monetary values are strictly represented in integer **poisha** ($1\text{ BDT} = 100\text{ poisha}$). Floating-point types are strictly forbidden to eliminate rounding errors.
 2. **Transaction Bounds**: The minimum amount for add-money and transfer operations is $100\text{ poisha}$ ($1\text{ BDT}$); the maximum single transaction limit is $2,500,000\text{ poisha}$ ($25,000\text{ BDT}$).
 3. **Non-Negative Balances**: A wallet balance can never drop below zero.
