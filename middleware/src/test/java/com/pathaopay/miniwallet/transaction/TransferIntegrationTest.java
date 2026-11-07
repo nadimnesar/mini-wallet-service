@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -350,6 +351,66 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(90000, balance(alice) + balance(bob));
         assertEquals(45000, balance(alice));
         assertEquals(10000, balance(REVENUE));
+    }
+
+    @Test
+    void aRingOfTransfersAcrossThreeWalletsDoesNotDeadlockAndKeepsTheBooksBalanced() throws Exception {
+        String carol = wallet("01711000003");
+        fund(bob, 50000);
+        fund(carol, 50000);
+        List<String> ring = List.of(alice, bob, carol);
+
+        List<Response> responses = concurrently(30, i -> transfer("key-" + i, ring.get(i % 3),
+                ring.get((i + 1) % 3), 1000, null));
+
+        responses.forEach(r -> assertEquals(201, r.status(), r.body().toString()));
+        assertEquals(30 * 500, balance(REVENUE));
+        assertEquals(150000 - 30 * 500, balance(alice) + balance(bob) + balance(carol));
+        assertTrialBalance();
+    }
+
+    @Test
+    void sameKeyWithDifferentBodiesExecutesExactlyOneOfThem() throws Exception {
+        List<Response> responses = concurrently(10, i -> transfer("key-1", alice, bob, i % 2 == 0 ? 10000 : 20000, null));
+
+        long created = responses.stream().filter(r -> r.status() == 201).count();
+        long rejected = responses.stream().filter(r -> r.status() == 422
+                && "IDEMPOTENCY_KEY_REUSED".equals(r.body().get("error").get("code").asString())).count();
+        assertTrue(created >= 1 && created + rejected == responses.size(), responses.toString());
+        long winnerAmount = responses.stream().filter(r -> r.status() == 201).findFirst().orElseThrow()
+                .body().get("amount").asLong();
+        assertEquals(50000 - winnerAmount - 500, balance(alice));
+        assertEquals(winnerAmount, balance(bob));
+        assertEquals(1, jdbcClient.sql("SELECT count(*) FROM " + Transactions.TABLE + " WHERE "
+                + Transactions.TYPE + " = 'TRANSFER'").query(Long.class).single());
+    }
+
+    @Test
+    void transfersAndAddMoneyCreditsToTheSameWalletInterleaveWithoutLosingAnUpdate() throws Exception {
+        CompletableFuture<List<Response>> transfers = CompletableFuture.supplyAsync(() -> {
+            try {
+                return concurrently(10, i -> transfer("key-" + i, alice, bob, 1000, null));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        for (int i = 0; i < 5; i++) {
+            topUp(alice, 10000, "top-" + i);
+        }
+
+        transfers.get().forEach(r -> assertEquals(201, r.status(), r.body().toString()));
+        assertEquals(50000 + 5 * 10000 - 10 * 1500, balance(alice));
+        assertEquals(10 * 1000, balance(bob));
+        assertTrialBalance();
+    }
+
+    /** Customer liabilities plus revenue equal the gateway clearing asset: money was neither created nor lost. */
+    private void assertTrialBalance() {
+        long credits = jdbcClient.sql("SELECT coalesce(sum(w.balance), 0) FROM (SELECT DISTINCT ON (wallet_id) balance_after AS balance"
+                        + " FROM " + LedgerEntries.TABLE + " WHERE " + LedgerEntries.WALLET_TYPE + " <> 'ASSET'"
+                        + " ORDER BY wallet_id, " + LedgerEntries.ENTRY_NO + " DESC) w")
+                .query(Long.class).single();
+        assertEquals(balance(AppConstants.GATEWAY_CLEARING_WALLET_PHONE), credits);
     }
 
     // ---- helpers -------------------------------------------------------------------------------
