@@ -12,6 +12,7 @@ public record Wallet(
         UUID userId,
         String phone,
         Currency currency,
+        WalletType type,
         long balance,
         Instant createdAt,
         Instant updatedAt

@@ -13,19 +13,27 @@ import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchExceptio
 import com.pathaopay.miniwallet.common.exception.transaction.InsufficientBalanceException;
 import com.pathaopay.miniwallet.common.exception.transaction.InvalidDateRangeException;
 import com.pathaopay.miniwallet.common.exception.transaction.SameWalletTransferException;
+import com.pathaopay.miniwallet.common.exception.transaction.SystemWalletException;
 import com.pathaopay.miniwallet.common.exception.transaction.TransactionNotFoundException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
+import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.dto.*;
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
-import com.pathaopay.miniwallet.model.TransactionFilter;
+import com.pathaopay.miniwallet.model.LedgerEntryView;
+import com.pathaopay.miniwallet.model.LedgerTransaction;
 import com.pathaopay.miniwallet.model.TransactionType;
-import com.pathaopay.miniwallet.model.WalletTransaction;
+import com.pathaopay.miniwallet.model.TransactionFilter;
+import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.Wallet;
+import com.pathaopay.miniwallet.model.LedgerEntry;
+import com.pathaopay.miniwallet.model.WalletType;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.TransactionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -34,13 +42,18 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class DefaultTransactionService implements TransactionService {
 
@@ -64,33 +77,37 @@ public class DefaultTransactionService implements TransactionService {
      */
     @Override
     public AddMoneyResponse addMoney(AddMoneyRequest request, String idempotencyKey) {
-        UUID walletId = request.walletId();
-        String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, walletId.toString(),
+        String phone = PhoneNumberUtils.normalize(request.phone());
+        String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, phone,
                 request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name()));
 
         return executeIdempotently(idempotencyKey, ADD_MONEY_OPERATION, requestHash, () -> {
-            AddMoneyResponse response = toAddMoneyResponse(creditWallet(walletId, request));
+            AddMoneyResponse response = creditWallet(phone, request);
+            log.info("Added money: transactionId={} phone={} amount={} balance={} gatewayRef={}",
+                    response.transactionId(), phone, response.addedAmount(), response.balance(), request.gatewayRef());
             return new Created<>(response.transactionId(), response);
         }, this::rebuildAddMoney);
     }
 
     /**
-     * Moves money between two wallets: both ledger legs (TRANSFER_OUT and TRANSFER_IN, sharing the
-     * transfer id as reference_id) are appended in one database transaction, so either both exist or
-     * neither does. Wallet rows are locked in ascending id order, so opposite transfers between the
-     * same two wallets cannot deadlock.
+     * Moves money between two customer wallets: one TRANSFER transaction (its id is the transfer id) and four ledger
+     * entries (TRANSFER_OUT and FEE_OUT on the sender, TRANSFER_IN on the receiver, FEE_IN on the revenue account) are
+     * written in one database transaction, so either all exist or none does. Wallet rows are locked in ascending id order, so
+     * opposite transfers between the same two wallets cannot deadlock.
      *
      * @see #executeIdempotently
      */
     @Override
     public TransferResponse transfer(TransferRequest request, String idempotencyKey) {
-        UUID from = request.fromWalletId();
-        UUID to = request.toWalletId();
-        String requestHash = sha256Hex(String.join("\n", TRANSFER_OPERATION, from.toString(), to.toString(),
+        String from = PhoneNumberUtils.normalize(request.fromPhone());
+        String to = PhoneNumberUtils.normalize(request.toPhone());
+        String requestHash = sha256Hex(String.join("\n", TRANSFER_OPERATION, from, to,
                 request.amount().toString(), request.note() == null ? "" : request.note()));
 
         return executeIdempotently(idempotencyKey, TRANSFER_OPERATION, requestHash, () -> {
             TransferResponse response = moveMoney(from, to, request.amount());
+            log.info("Transferred money: transferId={} from={} to={} amount={}",
+                    response.transferId(), from, to, response.amount());
             return new Created<>(response.transferId(), response);
         }, this::rebuildTransfer);
     }
@@ -114,8 +131,12 @@ public class DefaultTransactionService implements TransactionService {
                 return Outcome.success(created.response());
             } catch (MiniWalletException e) {
                 if (e.isRetryable()) {
+                    log.warn("{} failed with a retryable error, claim rolled back: key={} code={}",
+                            operation, idempotencyKey, e.getErrorCode());
                     throw e; // rolls back the claim
                 }
+                log.info("{} rejected, outcome stored for replay: key={} code={} message={}",
+                        operation, idempotencyKey, e.getErrorCode(), e.getMessage());
                 idempotencyRepository.completeWithError(idempotencyKey, e.getErrorCode(), e.getMessage());
                 return Outcome.failure(e);
             }
@@ -123,12 +144,15 @@ public class DefaultTransactionService implements TransactionService {
         return outcome.getOrThrow();
     }
 
-    private WalletTransaction creditWallet(UUID walletId, AddMoneyRequest request) {
-        if (!walletRepository.existsById(walletId)) {
-            throw new WalletNotFoundException(walletId);
-        }
-        // Cheap early exit; the unique index is the real guard (see appendAddMoney below).
-        if (transactionRepository.existsAddMoneyWithGatewayRef(request.gatewayRef())) {
+    /**
+     * Records the add-money transaction: DEBIT the gateway clearing asset account and CREDIT the customer's liability
+     * wallet, both for the captured amount.
+     */
+    private AddMoneyResponse creditWallet(String phone, AddMoneyRequest request) {
+        Wallet wallet = requireCustomerWallet(phone);
+        UUID walletId = wallet.id();
+        // Cheap early exit; the unique gateway_ref is the real guard (see insertAddMoney below).
+        if (transactionRepository.existsByGatewayRef(request.gatewayRef())) {
             throw duplicateGatewayRef(request.gatewayRef());
         }
 
@@ -136,57 +160,100 @@ public class DefaultTransactionService implements TransactionService {
                 request.paymentMethod(), request.gatewayRef(), request.amount());
         ensureCapturedAsRequested(payment, request);
 
-        // Serialize appends to this wallet, then continue its ledger chain.
-        walletRepository.lockForUpdate(walletId);
-        WalletTransaction latest = transactionRepository.findLatestEntry(walletId).orElse(null);
-        long entryNo = latest == null ? 1 : latest.entryNo() + 1;
-        long balanceBefore = latest == null ? 0 : latest.balanceAfter();
+        UUID clearingId = AppConstants.GATEWAY_CLEARING_WALLET_ID;
+        Map<UUID, Chain> chains = lockAndLoadChains(Set.of(walletId, clearingId));
 
-        WalletTransaction entry = new WalletTransaction(UuidGenerator.v7(), walletId, entryNo,
-                TransactionType.ADD_MONEY, request.amount(), balanceBefore, balanceBefore + request.amount(),
-                null, request.gatewayRef(), request.paymentMethod(), null);
-        return transactionRepository.appendAddMoney(entry)
+        LedgerTransaction transaction = transactionRepository.insertAddMoney(new LedgerTransaction(
+                        UuidGenerator.v7(), TransactionType.ADD_MONEY, request.amount(), request.gatewayRef(),
+                        request.paymentMethod(), null))
                 .orElseThrow(() -> duplicateGatewayRef(request.gatewayRef()));
+        LedgerEntry credit = chains.get(walletId).append(transactionRepository, EntryType.ADD_MONEY,
+                request.amount(), clearingId, transaction.id());
+        chains.get(clearingId).append(transactionRepository, EntryType.GATEWAY_CLEARING, request.amount(), walletId,
+                transaction.id());
+        return toAddMoneyResponse(transaction, credit, phone);
     }
 
-    private TransferResponse moveMoney(UUID from, UUID to, long amount) {
+    /**
+     * Records the transfer transaction: DEBIT the sender (amount + fee) and CREDIT the receiver (amount) and the revenue
+     * account (fee). Only customer wallets can send or receive.
+     */
+    private TransferResponse moveMoney(String from, String to, long amount) {
         if (from.equals(to)) {
             throw new SameWalletTransferException(ErrorMessage.SAME_WALLET_TRANSFER);
         }
-        // Ascending id order, the same for every transfer, so two transfers can never wait on each other.
-        boolean fromExists = false;
-        boolean toExists = false;
-        for (UUID id : from.compareTo(to) < 0 ? List.of(from, to) : List.of(to, from)) {
-            boolean locked = walletRepository.lockForUpdate(id);
-            if (id.equals(from)) {
-                fromExists = locked;
-            } else {
-                toExists = locked;
-            }
-        }
-        if (!fromExists) {
-            throw new WalletNotFoundException(from);
-        }
-        if (!toExists) {
-            throw new WalletNotFoundException(to);
-        }
-
-        WalletTransaction fromLatest = transactionRepository.findLatestEntry(from).orElse(null);
-        WalletTransaction toLatest = transactionRepository.findLatestEntry(to).orElse(null);
-        long fromBalance = fromLatest == null ? 0 : fromLatest.balanceAfter();
-        long toBalance = toLatest == null ? 0 : toLatest.balanceAfter();
-        if (fromBalance < amount) {
+        Wallet senderWallet = requireCustomerWallet(from);
+        Wallet receiverWallet = requireCustomerWallet(to);
+        UUID revenue = AppConstants.REVENUE_WALLET_ID;
+        Map<UUID, Chain> chains = lockAndLoadChains(new TreeSet<>(List.of(senderWallet.id(), receiverWallet.id(), revenue)));
+        Chain sender = chains.get(senderWallet.id());
+        Chain receiver = chains.get(receiverWallet.id());
+        long fee = AppConstants.TRANSFER_FEE_POISHA;
+        if (sender.balance < amount + fee) {
             throw new InsufficientBalanceException(ErrorMessage.INSUFFICIENT_BALANCE.formatted(from));
         }
 
-        UUID transferId = UuidGenerator.v7();
-        WalletTransaction out = transactionRepository.appendTransferLeg(new WalletTransaction(
-                UuidGenerator.v7(), from, fromLatest == null ? 1 : fromLatest.entryNo() + 1,
-                TransactionType.TRANSFER_OUT, amount, fromBalance, fromBalance - amount, to, transferId, null, null));
-        transactionRepository.appendTransferLeg(new WalletTransaction(
-                UuidGenerator.v7(), to, toLatest == null ? 1 : toLatest.entryNo() + 1,
-                TransactionType.TRANSFER_IN, amount, toBalance, toBalance + amount, from, transferId, null, null));
-        return toTransferResponse(out);
+        LedgerTransaction transaction = transactionRepository.insert(
+                new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, null));
+        UUID id = transaction.id();
+        sender.append(transactionRepository, EntryType.TRANSFER_OUT, amount, receiverWallet.id(), id);
+        sender.append(transactionRepository, EntryType.FEE_OUT, fee, revenue, id);
+        receiver.append(transactionRepository, EntryType.TRANSFER_IN, amount, senderWallet.id(), id);
+        chains.get(revenue).append(transactionRepository, EntryType.FEE_IN, fee, senderWallet.id(), id);
+        return toTransferResponse(transaction, from, to);
+    }
+
+    /**
+     * Locks the wallets in ascending id order (the same for every operation, so two operations can never wait on
+     * each other) and loads each one's latest ledger position.
+     */
+    private Map<UUID, Chain> lockAndLoadChains(Set<UUID> walletIds) {
+        Map<UUID, Chain> chains = new HashMap<>();
+        for (UUID id : new TreeSet<>(walletIds)) {
+            WalletType type = walletRepository.lockForUpdate(id)
+                    .orElseThrow(() -> new IllegalStateException("Wallet vanished: " + id));
+            LedgerEntry latest = transactionRepository.findLatestEntry(id).orElse(null);
+            chains.put(id, new Chain(id, type, latest == null ? 0 : latest.entryNo(),
+                    latest == null ? 0 : latest.balanceAfter()));
+        }
+        return chains;
+    }
+
+    /** The wallet with this phone, which must exist and be a customer wallet. */
+    private Wallet requireCustomerWallet(String phone) {
+        Wallet wallet = walletRepository.findByPhone(phone).orElseThrow(() -> new WalletNotFoundException(phone));
+        if (wallet.type() != WalletType.LIABILITY) {
+            throw new SystemWalletException(ErrorMessage.SYSTEM_WALLET_NOT_ALLOWED.formatted(phone, wallet.type()));
+        }
+        return wallet;
+    }
+
+    /**
+     * A wallet's ledger position within the running transaction: advanced as legs are appended, so a wallet can
+     * receive several legs in one journal.
+     */
+    private static final class Chain {
+        private final UUID walletId;
+        private final WalletType type;
+        private long entryNo;
+        private long balance;
+
+        private Chain(UUID walletId, WalletType type, long entryNo, long balance) {
+            this.walletId = walletId;
+            this.type = type;
+            this.entryNo = entryNo;
+            this.balance = balance;
+        }
+
+        LedgerEntry append(TransactionRepository repository, EntryType legType, long amount, UUID counterparty,
+                           UUID transactionId) {
+            LedgerEntry stored = repository.appendEntry(new LedgerEntry(UuidGenerator.v7(), walletId, type,
+                    entryNo + 1, legType, legType.direction(), amount, balance,
+                    type.apply(balance, legType.direction(), amount), counterparty, transactionId, null));
+            entryNo = stored.entryNo();
+            balance = stored.balanceAfter();
+            return stored;
+        }
     }
 
     private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request) {
@@ -210,8 +277,12 @@ public class DefaultTransactionService implements TransactionService {
         IdempotencyRecord record = idempotencyRepository.findByKey(idempotencyKey)
                 .orElseThrow(() -> new IllegalStateException("Claimed idempotency key vanished: " + idempotencyKey));
         if (!record.requestHash().equals(requestHash)) {
+            log.warn("Idempotency-Key reused with a different request: key={} operation={}",
+                    idempotencyKey, record.operation());
             throw new IdempotencyKeyReusedException(ErrorMessage.IDEMPOTENCY_KEY_REUSED);
         }
+        log.info("Replaying stored {} outcome: key={} resourceId={} errorCode={}",
+                record.operation(), idempotencyKey, record.resourceId(), record.errorCode());
         if (record.resourceId() != null) {
             return Outcome.success(rebuild.apply(record.resourceId()));
         }
@@ -219,22 +290,38 @@ public class DefaultTransactionService implements TransactionService {
     }
 
     private AddMoneyResponse rebuildAddMoney(UUID transactionId) {
-        return toAddMoneyResponse(transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new IllegalStateException("Missing ledger entry " + transactionId)));
+        LedgerEntry credit = requireEntry(transactionId, EntryType.ADD_MONEY);
+        return toAddMoneyResponse(requireTransaction(transactionId), credit, phoneOf(credit.walletId()));
     }
 
     private TransferResponse rebuildTransfer(UUID transferId) {
-        return toTransferResponse(transactionRepository.findTransferOut(transferId)
-                .orElseThrow(() -> new IllegalStateException("Missing transfer " + transferId)));
+        LedgerEntry out = requireEntry(transferId, EntryType.TRANSFER_OUT);
+        return toTransferResponse(requireTransaction(transferId), phoneOf(out.walletId()),
+                phoneOf(out.counterpartyWalletId()));
+    }
+
+    private LedgerTransaction requireTransaction(UUID transactionId) {
+        return transactionRepository.findTransaction(transactionId)
+                .orElseThrow(() -> new IllegalStateException("Missing transaction " + transactionId));
+    }
+
+    private String phoneOf(UUID walletId) {
+        return walletRepository.findById(walletId)
+                .orElseThrow(() -> new IllegalStateException("Missing wallet " + walletId)).phone();
+    }
+
+    private LedgerEntry requireEntry(UUID transactionId, EntryType type) {
+        return transactionRepository.findEntry(transactionId, type)
+                .orElseThrow(() -> new IllegalStateException("Missing " + type + " entry of transaction " + transactionId));
     }
 
     private static DuplicateGatewayRefException duplicateGatewayRef(UUID gatewayRef) {
         return new DuplicateGatewayRefException(ErrorMessage.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
     }
 
-    private static AddMoneyResponse toAddMoneyResponse(WalletTransaction entry) {
-        return new AddMoneyResponse(entry.id(), entry.walletId(), entry.amount(), entry.balanceAfter(),
-                entry.referenceId(), entry.paymentMethod(), entry.createdAt());
+    private static AddMoneyResponse toAddMoneyResponse(LedgerTransaction transaction, LedgerEntry credit, String phone) {
+        return new AddMoneyResponse(transaction.id(), phone, transaction.amount(), credit.balanceAfter(),
+                transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt());
     }
 
     private static String sha256Hex(String value) {
@@ -268,17 +355,23 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static TransferResponse toTransferResponse(WalletTransaction out) {
-        return new TransferResponse(out.referenceId(), out.walletId(), out.counterpartyWalletId(), out.amount(),
-                TRANSFER_STATUS_COMPLETED, out.createdAt());
+    private static TransferResponse toTransferResponse(LedgerTransaction transaction, String from, String to) {
+        return new TransferResponse(transaction.id(), from, to, transaction.amount(),
+                AppConstants.TRANSFER_FEE_POISHA, TRANSFER_STATUS_COMPLETED, transaction.createdAt());
+    }
+
+    private static TransactionItemResponse toItem(LedgerEntryView view) {
+        LedgerEntry e = view.entry();
+        return new TransactionItemResponse(e.id(), e.transactionId(), view.phone(), e.type(), e.direction(),
+                e.amount(), e.balanceAfter(), view.counterpartyPhone(), e.createdAt());
     }
 
     /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public TransactionPageResponse getTransactions(
-            UUID walletId,
-            TransactionType type,
+            String phone,
+            EntryType type,
             Instant from,
             Instant to,
             int page,
@@ -287,15 +380,17 @@ public class DefaultTransactionService implements TransactionService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new InvalidDateRangeException();
         }
-        if (walletId != null && !walletRepository.existsById(walletId)) {
-            throw new WalletNotFoundException(walletId);
+        UUID walletId = null;
+        if (phone != null) {
+            String normalized = PhoneNumberUtils.normalize(phone);
+            walletId = walletRepository.findByPhone(normalized)
+                    .orElseThrow(() -> new WalletNotFoundException(normalized)).id();
         }
         TransactionFilter filter = new TransactionFilter(walletId, type, from, to);
         long totalItems = transactionRepository.count(filter);
         List<TransactionItemResponse> items = transactionRepository
                 .search(filter, pageSize, (long) (page - 1) * pageSize).stream()
-                .map(e -> new TransactionItemResponse(e.id(), e.type(), e.amount(), e.balanceAfter(),
-                        e.counterpartyWalletId(), e.referenceId(), e.createdAt()))
+                .map(DefaultTransactionService::toItem)
                 .toList();
         int totalPages = (int) ((totalItems + pageSize - 1) / pageSize);
         return new TransactionPageResponse(items, page, pageSize, totalItems, totalPages);
@@ -305,9 +400,12 @@ public class DefaultTransactionService implements TransactionService {
     @Override
     @Transactional(readOnly = true)
     public TransactionDetailResponse getTransactionDetails(UUID transactionId) {
-        WalletTransaction e = transactionRepository.findById(transactionId)
+        LedgerTransaction transaction = transactionRepository.findTransaction(transactionId)
                 .orElseThrow(() -> new TransactionNotFoundException(transactionId.toString()));
-        return new TransactionDetailResponse(e.id(), e.walletId(), e.type(), e.amount(), e.balanceAfter(),
-                e.counterpartyWalletId(), e.referenceId(), e.createdAt());
+        List<TransactionItemResponse> entries = transactionRepository.findEntries(transactionId).stream()
+                .map(DefaultTransactionService::toItem)
+                .toList();
+        return new TransactionDetailResponse(transaction.id(), transaction.type(), transaction.amount(),
+                transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt(), entries);
     }
 }

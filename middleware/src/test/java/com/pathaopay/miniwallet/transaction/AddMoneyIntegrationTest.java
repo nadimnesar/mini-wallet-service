@@ -1,7 +1,9 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
-import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
@@ -44,52 +46,89 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     private WalletService walletService;
 
     private RestClient api;
+    private String phone;
     private UUID walletId;
 
     @BeforeEach
     void setUp() {
         api = RestClient.create("http://localhost:" + port);
-        walletId = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001")).walletId();
+        phone = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001")).phone();
+        walletId = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", phone)
+                .query(UUID.class).single();
     }
 
     // ---- happy paths ----------------------------------------------------------------------------
 
     @Test
     void creditsWalletAfterVisaConfirmsPayment() {
-        Response response = addMoney(walletId, "key-1", 50000, ref("GW-VISA-1"), "VISA");
+        Response response = addMoney(phone, "key-1", 50000, ref("GW-VISA-1"), "VISA");
 
         assertEquals(201, response.status());
-        assertEquals(walletId.toString(), response.body().get("wallet_id").asString());
+        assertEquals(phone, response.body().get("phone").asString());
+        assertEquals(false, response.body().has("wallet_id"));
         assertEquals(50000, response.body().get("added_amount").asLong());
         assertEquals(50000, response.body().get("balance").asLong());
         assertEquals(ref("GW-VISA-1"), response.body().get("gateway_ref").asString());
         assertEquals("VISA", response.body().get("payment_method").asString());
         assertEquals(7, UUID.fromString(response.body().get("transaction_id").asString()).version());
-        assertEquals(50000, walletService.getWallet(walletId).balance());
+        assertEquals(1, jdbcClient.sql("SELECT count(*) FROM " + Transactions.TABLE + " WHERE " + Transactions.ID
+                        + " = :id AND " + Transactions.TYPE + " = 'ADD_MONEY' AND " + Transactions.GATEWAY_REF
+                        + " = :ref AND " + Transactions.PAYMENT_METHOD + " = 'VISA'")
+                .param("id", UUID.fromString(response.body().get("transaction_id").asString()))
+                .param("ref", UUID.fromString(ref("GW-VISA-1"))).query(Long.class).single());
+        assertEquals(50000, walletService.getWallet(phone).balance());
         assertEquals(1, gatewayCalls("visa"));
     }
 
     @Test
     void creditsWalletAfterMastercardConfirmsPaymentAndChainsLedgerEntries() {
-        addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA");
-        Response second = addMoney(walletId, "key-2", 20000, ref("GW-2"), "MASTERCARD");
+        addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
+        Response second = addMoney(phone, "key-2", 20000, ref("GW-2"), "MASTERCARD");
 
         assertEquals(201, second.status());
         assertEquals(70000, second.body().get("balance").asLong());
         assertEquals("MASTERCARD", second.body().get("payment_method").asString());
         assertEquals(1, gatewayCalls("mastercard"));
         assertEquals(List.of(1L, 2L), jdbcClient.sql(
-                        "SELECT " + WalletTransactions.ENTRY_NO + " FROM " + WalletTransactions.TABLE
-                                + " WHERE " + WalletTransactions.WALLET_ID + " = :w ORDER BY " + WalletTransactions.ENTRY_NO)
+                        "SELECT " + LedgerEntries.ENTRY_NO + " FROM " + LedgerEntries.TABLE
+                                + " WHERE " + LedgerEntries.WALLET_ID + " = :w ORDER BY " + LedgerEntries.ENTRY_NO)
                 .param("w", walletId).query(Long.class).list());
+    }
+
+    @Test
+    void postsABalancedJournalDebitingTheGatewayClearingAsset() {
+        addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
+        addMoney(phone, "key-2", 20000, ref("GW-2"), "MASTERCARD");
+
+        UUID clearing = AppConstants.GATEWAY_CLEARING_WALLET_ID;
+        assertEquals(70000, balanceOf(phone));
+        assertEquals(70000, balanceOf(AppConstants.GATEWAY_CLEARING_WALLET_PHONE));
+        assertEquals(2, jdbcClient.sql("SELECT count(*) FROM " + LedgerEntries.TABLE + " WHERE "
+                        + LedgerEntries.WALLET_ID + " = :w AND " + LedgerEntries.TYPE + " = 'GATEWAY_CLEARING' AND "
+                        + LedgerEntries.DIRECTION + " = 'DEBIT' AND " + LedgerEntries.COUNTERPARTY_WALLET_ID + " = :c")
+                .param("w", clearing).param("c", walletId).query(Long.class).single());
+        assertEquals(0, jdbcClient.sql("SELECT COALESCE(SUM(CASE " + LedgerEntries.DIRECTION
+                        + " WHEN 'DEBIT' THEN " + LedgerEntries.AMOUNT + " ELSE -" + LedgerEntries.AMOUNT
+                        + " END), 0) FROM " + LedgerEntries.TABLE)
+                .query(Long.class).single());
+    }
+
+    @Test
+    void systemAccountsCannotBeToppedUpAndNoGatewayCallIsMade() {
+        assertError(addMoney(AppConstants.REVENUE_WALLET_PHONE, "key-1", 50000, ref("GW-1"), "VISA"),
+                422, "SYSTEM_WALLET_NOT_ALLOWED");
+        assertError(addMoney(AppConstants.GATEWAY_CLEARING_WALLET_PHONE, "key-2", 50000, ref("GW-2"), "VISA"),
+                422, "SYSTEM_WALLET_NOT_ALLOWED");
+        assertEquals(0, gatewayCalls("visa"));
+        assertEquals(0, ledgerEntries());
     }
 
     // ---- idempotency -----------------------------------------------------------------------------
 
     @Test
     void sameKeyAndBodyReplaysOriginalResponseWithoutProcessingAgain() {
-        Response first = addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA");
-        Response replay = addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA");
+        Response first = addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
+        Response replay = addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
 
         assertEquals(201, replay.status());
         assertEquals(first.body(), replay.body());
@@ -99,16 +138,16 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void sameKeyWithDifferentBodyIsRejected() {
-        addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA");
-        Response reused = addMoney(walletId, "key-1", 60000, ref("GW-1"), "VISA");
+        addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
+        Response reused = addMoney(phone, "key-1", 60000, ref("GW-1"), "VISA");
 
         assertError(reused, 422, "IDEMPOTENCY_KEY_REUSED");
-        assertEquals(50000, walletService.getWallet(walletId).balance());
+        assertEquals(50000, walletService.getWallet(phone).balance());
     }
 
     @Test
     void missingIdempotencyKeyIsRejected() {
-        Response response = send(null, body(walletId, 50000, ref("GW-1"), "VISA"));
+        Response response = send(null, body(phone, 50000, ref("GW-1"), "VISA"));
 
         assertError(response, 400, "MISSING_IDEMPOTENCY_KEY");
         assertEquals(0, gatewayCalls("visa"));
@@ -116,7 +155,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void concurrentRequestsWithSameKeyExecuteExactlyOnce() throws Exception {
-        List<Response> responses = concurrently(20, i -> addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA"));
+        List<Response> responses = concurrently(20, i -> addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA"));
 
         Set<JsonNode> bodies = new HashSet<>();
         for (Response response : responses) {
@@ -126,13 +165,13 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, bodies.size(), "every caller gets the same response");
         assertEquals(1, gatewayCalls("visa"));
         assertEquals(1, ledgerEntries());
-        assertEquals(50000, walletService.getWallet(walletId).balance());
+        assertEquals(50000, walletService.getWallet(phone).balance());
     }
 
     @Test
     void deterministicFailureIsStoredAndReplayed() {
-        Response first = addMoney(walletId, "key-1", 50000, ref("GW-DECLINED-1"), "VISA");
-        Response replay = addMoney(walletId, "key-1", 50000, ref("GW-DECLINED-1"), "VISA");
+        Response first = addMoney(phone, "key-1", 50000, ref("GW-DECLINED-1"), "VISA");
+        Response replay = addMoney(phone, "key-1", 50000, ref("GW-DECLINED-1"), "VISA");
 
         assertError(first, 402, "PAYMENT_DECLINED");
         assertEquals(first.status(), replay.status());
@@ -142,8 +181,8 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void transientGatewayFailureIsNotStoredSoTheSameKeyCanBeRetried() {
-        Response first = addMoney(walletId, "key-1", 50000, ref("GW-ERROR-1"), "VISA");
-        Response retry = addMoney(walletId, "key-1", 50000, ref("GW-ERROR-1"), "VISA");
+        Response first = addMoney(phone, "key-1", 50000, ref("GW-ERROR-1"), "VISA");
+        Response retry = addMoney(phone, "key-1", 50000, ref("GW-ERROR-1"), "VISA");
 
         assertError(first, 502, "PAYMENT_GATEWAY_ERROR");
         assertError(retry, 502, "PAYMENT_GATEWAY_ERROR");
@@ -155,7 +194,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void declinedPaymentDoesNotCredit() {
-        Response response = addMoney(walletId, "key-1", 50000, ref("GW-DECLINED-1"), "MASTERCARD");
+        Response response = addMoney(phone, "key-1", 50000, ref("GW-DECLINED-1"), "MASTERCARD");
 
         assertError(response, 402, "PAYMENT_DECLINED");
         assertTrue(response.body().get("error").get("message").asString().contains("INSUFFICIENT_FUNDS"));
@@ -164,24 +203,24 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void pendingPaymentDoesNotCredit() {
-        assertError(addMoney(walletId, "key-1", 50000, ref("GW-PENDING-1"), "VISA"), 402, "PAYMENT_DECLINED");
+        assertError(addMoney(phone, "key-1", 50000, ref("GW-PENDING-1"), "VISA"), 402, "PAYMENT_DECLINED");
         assertEquals(0, ledgerEntries());
     }
 
     @Test
     void unknownPaymentIsRejected() {
-        assertError(addMoney(walletId, "key-1", 50000, ref("GW-NOTFOUND-1"), "VISA"), 422, "PAYMENT_NOT_FOUND");
+        assertError(addMoney(phone, "key-1", 50000, ref("GW-NOTFOUND-1"), "VISA"), 422, "PAYMENT_NOT_FOUND");
     }
 
     @Test
     void paymentCapturedForDifferentAmountIsRejected() {
-        assertError(addMoney(walletId, "key-1", 50000, ref("GW-MISMATCH-1"), "VISA"), 422, "PAYMENT_MISMATCH");
+        assertError(addMoney(phone, "key-1", 50000, ref("GW-MISMATCH-1"), "VISA"), 422, "PAYMENT_MISMATCH");
         assertEquals(0, ledgerEntries());
     }
 
     @Test
     void gatewayTimeoutIsReportedAsGatewayError() {
-        assertError(addMoney(walletId, "key-1", 50000, ref("GW-TIMEOUT-1"), "VISA"), 502, "PAYMENT_GATEWAY_ERROR");
+        assertError(addMoney(phone, "key-1", 50000, ref("GW-TIMEOUT-1"), "VISA"), 502, "PAYMENT_GATEWAY_ERROR");
         assertEquals(0, ledgerEntries());
     }
 
@@ -189,69 +228,76 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void gatewayRefCanCreditOnlyOnce() {
-        addMoney(walletId, "key-1", 50000, ref("GW-1"), "VISA");
-        Response duplicate = addMoney(walletId, "key-2", 50000, ref("GW-1"), "VISA");
+        addMoney(phone, "key-1", 50000, ref("GW-1"), "VISA");
+        Response duplicate = addMoney(phone, "key-2", 50000, ref("GW-1"), "VISA");
 
         assertError(duplicate, 409, "DUPLICATE_GATEWAY_REF");
         assertEquals(1, gatewayCalls("visa"), "a known gateway_ref is rejected before calling the gateway");
-        assertEquals(50000, walletService.getWallet(walletId).balance());
+        assertEquals(50000, walletService.getWallet(phone).balance());
     }
 
     @Test
     void concurrentRequestsWithSameGatewayRefCreditOnce() throws Exception {
-        List<Response> responses = concurrently(10, i -> addMoney(walletId, "key-" + i, 50000, ref("GW-1"), "VISA"));
+        List<Response> responses = concurrently(10, i -> addMoney(phone, "key-" + i, 50000, ref("GW-1"), "VISA"));
 
         assertEquals(1, responses.stream().filter(r -> r.status() == 201).count());
         responses.stream().filter(r -> r.status() != 201)
                 .forEach(r -> assertError(r, 409, "DUPLICATE_GATEWAY_REF"));
-        assertEquals(50000, walletService.getWallet(walletId).balance());
+        assertEquals(50000, walletService.getWallet(phone).balance());
     }
 
     @Test
     void concurrentCreditsToOneWalletAreAllApplied() throws Exception {
-        List<Response> responses = concurrently(10, i -> addMoney(walletId, "key-" + i, 1000 * (i + 1), ref("GW-" + i),
+        List<Response> responses = concurrently(10, i -> addMoney(phone, "key-" + i, 1000 * (i + 1), ref("GW-" + i),
                 i % 2 == 0 ? "VISA" : "MASTERCARD"));
 
         responses.forEach(r -> assertEquals(201, r.status()));
-        assertEquals(55000, walletService.getWallet(walletId).balance());
+        assertEquals(55000, walletService.getWallet(phone).balance());
         assertEquals(10, ledgerEntries());
     }
 
     @Test
     void unknownWalletIsRejectedWithoutCallingGateway() {
-        assertError(addMoney(UUID.randomUUID(), "key-1", 50000, ref("GW-1"), "VISA"), 404, "WALLET_NOT_FOUND");
+        assertError(addMoney("01999999999", "key-1", 50000, ref("GW-1"), "VISA"), 404, "WALLET_NOT_FOUND");
         assertEquals(0, gatewayCalls("visa"));
     }
 
     @Test
-    void walletIdIsRequiredInTheBody() {
+    void phoneIsRequiredInTheBody() {
         Response response = send("key-1", """
                 {"amount": 50000, "gateway_ref": "%s", "payment_method": "VISA"}""".formatted(ref("GW-1")));
 
         assertError(response, 400, "VALIDATION_ERROR");
-        assertEquals("walletId: wallet_id is required", response.body().get("error").get("message").asString());
+        assertEquals("phone: phone is required", response.body().get("error").get("message").asString());
         assertEquals(0, gatewayCalls("visa"));
     }
 
     @Test
-    void walletIdMustBeAUuid() {
+    void phoneMustBeAValidBangladeshiNumber() {
         Response response = send("key-1", """
-                {"wallet_id": "w_123", "amount": 50000, "gateway_ref": "%s", "payment_method": "VISA"}"""
+                {"phone": "w_123", "amount": 50000, "gateway_ref": "%s", "payment_method": "VISA"}"""
                 .formatted(ref("GW-1")));
 
-        assertError(response, 400, "INVALID_PAYLOAD");
-        assertEquals("Invalid value for field: wallet_id", response.body().get("error").get("message").asString());
+        assertError(response, 400, "VALIDATION_ERROR");
+        assertEquals(0, gatewayCalls("visa"));
+    }
+
+    @Test
+    void phoneInAnyAcceptedFormatCreditsTheSameWallet() {
+        assertEquals(201, addMoney("+8801711000001", "key-1", 50000, ref("GW-1"), "VISA").status());
+        assertEquals(201, addMoney("1711000001", "key-2", 10000, ref("GW-2"), "VISA").status());
+        assertEquals(60000, balanceOf(phone));
     }
 
     @Test
     void amountOutsideLimitsIsRejected() {
-        assertError(addMoney(walletId, "key-1", 99, ref("GW-1"), "VISA"), 400, "VALIDATION_ERROR");
-        assertError(addMoney(walletId, "key-2", 2_500_001, ref("GW-2"), "VISA"), 400, "VALIDATION_ERROR");
+        assertError(addMoney(phone, "key-1", 99, ref("GW-1"), "VISA"), 400, "VALIDATION_ERROR");
+        assertError(addMoney(phone, "key-2", 2_500_001, ref("GW-2"), "VISA"), 400, "VALIDATION_ERROR");
     }
 
     @Test
     void unsupportedPaymentMethodIsRejected() {
-        Response response = addMoney(walletId, "key-1", 50000, ref("GW-1"), "AMEX");
+        Response response = addMoney(phone, "key-1", 50000, ref("GW-1"), "AMEX");
 
         assertError(response, 400, "INVALID_PAYLOAD");
         assertEquals("Invalid value for field: payment_method", response.body().get("error").get("message").asString());
@@ -259,7 +305,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void gatewayRefMustBeAUuid() {
-        Response response = addMoney(walletId, "key-1", 50000, "GW-20261105-9981", "VISA");
+        Response response = addMoney(phone, "key-1", 50000, "GW-20261105-9981", "VISA");
 
         assertError(response, 400, "INVALID_PAYLOAD");
         assertEquals("Invalid value for field: gateway_ref", response.body().get("error").get("message").asString());
@@ -271,14 +317,14 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     private record Response(int status, JsonNode body) {
     }
 
-    private Response addMoney(UUID wallet, String key, long amount, String gatewayRef, String paymentMethod) {
-        return send(key, body(wallet, amount, gatewayRef, paymentMethod));
+    private Response addMoney(String phone, String key, long amount, String gatewayRef, String paymentMethod) {
+        return send(key, body(phone, amount, gatewayRef, paymentMethod));
     }
 
-    private static String body(UUID wallet, long amount, String gatewayRef, String paymentMethod) {
+    private static String body(String phone, long amount, String gatewayRef, String paymentMethod) {
         return """
-                {"wallet_id": "%s", "amount": %d, "gateway_ref": "%s", "payment_method": "%s"}"""
-                .formatted(wallet, amount, gatewayRef, paymentMethod);
+                {"phone": "%s", "amount": %d, "gateway_ref": "%s", "payment_method": "%s"}"""
+                .formatted(phone, amount, gatewayRef, paymentMethod);
     }
 
     private Response send(String key, String body) {
@@ -335,8 +381,14 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         return JSON.readTree(count).get("count").asLong();
     }
 
+    /** Number of credited top-ups: each one is a journal of an ADD_MONEY leg and a GATEWAY_CLEARING leg. */
     private long ledgerEntries() {
-        return jdbcClient.sql("SELECT count(*) FROM " + WalletTransactions.TABLE).query(Long.class).single();
+        return jdbcClient.sql("SELECT count(*) FROM " + LedgerEntries.TABLE + " WHERE "
+                + LedgerEntries.TYPE + " = 'ADD_MONEY'").query(Long.class).single();
+    }
+
+    private long balanceOf(String phone) {
+        return walletService.getWallet(phone).balance();
     }
 
     private long idempotencyKeys() {

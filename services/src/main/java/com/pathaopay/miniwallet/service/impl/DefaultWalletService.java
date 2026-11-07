@@ -1,5 +1,6 @@
 package com.pathaopay.miniwallet.service.impl;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
@@ -13,12 +14,14 @@ import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class DefaultWalletService implements WalletService {
 
@@ -28,8 +31,16 @@ public class DefaultWalletService implements WalletService {
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
         String phone = PhoneNumberUtils.normalize(request.phone());
+        if (AppConstants.SYSTEM_USER_ID.equals(request.userId())) {
+            log.info("Wallet creation rejected, user_id is reserved for system accounts");
+            throw new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + request.userId());
+        }
         return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT)
                 .map(DefaultWalletService::toResponse)
+                .map(wallet -> {
+                    log.info("Wallet created: phone={} userId={}", wallet.phone(), wallet.userId());
+                    return wallet;
+                })
                 .orElseThrow(() -> conflictFor(request.userId(), phone));
     }
 
@@ -39,9 +50,11 @@ public class DefaultWalletService implements WalletService {
      */
     private RuntimeException conflictFor(UUID userId, String phone) {
         if (walletRepository.existsByUserId(userId)) {
+            log.info("Wallet creation rejected, user already has a wallet: userId={}", userId);
             return new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + userId);
         }
         if (walletRepository.existsByPhone(phone)) {
+            log.info("Wallet creation rejected, phone already in use: userId={}", userId);
             return new DuplicatePhoneException(ErrorMessage.DUPLICATE_PHONE_PREFIX + phone);
         }
         // Only reachable on a generated wallet-id collision (UUIDv7 has 74 random bits per millisecond).
@@ -53,13 +66,17 @@ public class DefaultWalletService implements WalletService {
      */
     @Override
     @Transactional(readOnly = true)
-    public WalletResponse getWallet(UUID walletId) {
-        return walletRepository.findById(walletId)
+    public WalletResponse getWallet(String phone) {
+        String normalized = PhoneNumberUtils.normalize(phone);
+        return walletRepository.findByPhone(normalized)
                 .map(DefaultWalletService::toResponse)
-                .orElseThrow(() -> new WalletNotFoundException(walletId));
+                .orElseThrow(() -> {
+                    log.info("Wallet not found: phone={}", normalized);
+                    return new WalletNotFoundException(normalized);
+                });
     }
 
     private static WalletResponse toResponse(Wallet wallet) {
-        return new WalletResponse(wallet.id(), wallet.userId(), wallet.phone(), wallet.currency(), wallet.balance(), wallet.createdAt());
+        return new WalletResponse(wallet.userId(), wallet.phone(), wallet.currency(), wallet.type(), wallet.balance(), wallet.createdAt());
     }
 }

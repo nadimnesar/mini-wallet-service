@@ -1,17 +1,28 @@
 package com.pathaopay.miniwallet.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.EntryDirection;
+import com.pathaopay.miniwallet.model.EntryType;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/** One ledger entry (a debit or credit leg) of a transaction. */
 public record TransactionItemResponse(
+        @JsonProperty("entry_id")
+        UUID entryId,
+
         @JsonProperty("transaction_id")
         UUID transactionId,
 
+        @JsonProperty("phone")
+        String phone,
+
         @JsonProperty("type")
-        TransactionType type,
+        EntryType type,
+
+        @JsonProperty("direction")
+        EntryDirection direction,
 
         @JsonProperty("amount")
         long amount,
@@ -19,11 +30,8 @@ public record TransactionItemResponse(
         @JsonProperty("balance_after")
         long balanceAfter,
 
-        @JsonProperty("counterparty_wallet_id")
-        UUID counterpartyWalletId,
-
-        @JsonProperty("reference_id")
-        UUID referenceId,
+        @JsonProperty("counterparty_phone")
+        String counterpartyPhone,
 
         @JsonProperty("created_at")
         Instant createdAt

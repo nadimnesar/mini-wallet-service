@@ -1,7 +1,9 @@
 package com.pathaopay.miniwallet.support;
 
+import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
-import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.common.constant.DbConstants;
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
@@ -19,6 +21,7 @@ import org.testcontainers.utility.MountableFile;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Base for tests that run the full application (on a random HTTP port) against real
@@ -30,7 +33,7 @@ import java.util.List;
  *   ({@code docker/wiremock}).</li>
  * </ul>
  * Containers are shared by all test classes (singleton pattern) so the cached Spring context keeps
- * pointing at live services. Every test starts with empty tables and a fresh gateway request log.
+ * pointing at live services. Every test starts with empty tables (except the seeded system accounts) and a fresh gateway request log.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class AbstractIntegrationTest {
@@ -60,12 +63,20 @@ public abstract class AbstractIntegrationTest {
         registry.add(PaymentGatewayConstants.PROPERTIES_PREFIX + ".read-timeout", () -> "1s");
     }
 
+    private static final List<UUID> SYSTEM_WALLETS = List.of(AppConstants.REVENUE_WALLET_ID,
+            AppConstants.GATEWAY_CLEARING_WALLET_ID,
+            AppConstants.OPERATING_EXPENSE_WALLET_ID, AppConstants.OWNER_EQUITY_WALLET_ID);
+
     @Autowired
     protected JdbcClient jdbcClient;
 
     @BeforeEach
     void resetInfrastructure() {
-        jdbcClient.sql("TRUNCATE TABLE " + String.join(", ", IdempotencyKeys.TABLE, WalletTransactions.TABLE, Wallets.TABLE)).update();
+        jdbcClient.sql("TRUNCATE TABLE " + String.join(", ", IdempotencyKeys.TABLE, LedgerEntries.TABLE,
+                Transactions.TABLE)).update();
+        // The system accounts are seeded by Liquibase (all at balance 0), so they survive the reset.
+        jdbcClient.sql("DELETE FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " NOT IN (:system)")
+                .param("system", SYSTEM_WALLETS).update();
         RestClient.create(paymentGatewayUrl()).delete().uri("/__admin/requests").retrieve().toBodilessEntity();
     }
 

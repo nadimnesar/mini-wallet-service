@@ -28,6 +28,7 @@ public final class ErrorConstants {
         public static final String PAYMENT_GATEWAY_ERROR = "PAYMENT_GATEWAY_ERROR";
         public static final String INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE";
         public static final String SAME_WALLET_TRANSFER = "SAME_WALLET_TRANSFER";
+        public static final String SYSTEM_WALLET_NOT_ALLOWED = "SYSTEM_WALLET_NOT_ALLOWED";
         public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
         public static final String INVALID_DATE_RANGE = "INVALID_DATE_RANGE";
         public static final String NOT_FOUND = "NOT_FOUND";
@@ -48,13 +49,16 @@ public final class ErrorConstants {
         /** Format with the JSON field path, e.g. user_id. */
         public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
-        public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with id: ";
+        public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with phone: ";
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
-        /** Format with the sender wallet id. */
-        public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer.";
+        /** Format with the sender phone. */
+        public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer and its fee.";
         public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
+        /** Format with the wallet phone and its account type. */
+        public static final String SYSTEM_WALLET_NOT_ALLOWED =
+                "Wallet %s is a %s ledger account, not a customer wallet, and cannot take part in this operation.";
         public static final String INVALID_DATE_RANGE = "from must not be after to";
         public static final String DUPLICATE_GATEWAY_REF_PREFIX = "This gateway_ref has already been used: ";
         public static final String IDEMPOTENCY_KEY_REUSED =

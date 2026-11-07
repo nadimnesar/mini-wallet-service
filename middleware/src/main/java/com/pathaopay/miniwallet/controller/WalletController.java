@@ -1,14 +1,10 @@
 package com.pathaopay.miniwallet.controller;
 
-import com.pathaopay.miniwallet.dto.AddMoneyRequest;
-import com.pathaopay.miniwallet.dto.AddMoneyResponse;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.dto.WalletResponse;
+import com.pathaopay.miniwallet.dto.*;
+import com.pathaopay.miniwallet.model.EntryType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import jakarta.validation.Valid;
-import com.pathaopay.miniwallet.dto.TransactionPageResponse;
-import com.pathaopay.miniwallet.model.TransactionType;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -21,7 +17,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @RestController
 @RequestMapping(path = "/api/v1/wallets")
@@ -38,9 +33,9 @@ public class WalletController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/{walletId}")
-    public ResponseEntity<WalletResponse> getWallet(@PathVariable("walletId") UUID walletId) {
-        WalletResponse response = walletService.getWallet(walletId);
+    @GetMapping("/{phone}")
+    public ResponseEntity<WalletResponse> getWallet(@PathVariable("phone") String phone) {
+        WalletResponse response = walletService.getWallet(phone);
         return ResponseEntity.ok(response);
     }
 
@@ -52,12 +47,12 @@ public class WalletController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/{walletId}/transactions")
-    public ResponseEntity<TransactionPageResponse> getWalletTransactions(
-            @PathVariable("walletId") UUID walletId,
+    @GetMapping("/{phone}/transactions")
+    public ResponseEntity<TransactionPageResponse> getLedgerEntries(
+            @PathVariable("phone") String phone,
 
             @RequestParam(name = "type", required = false)
-            TransactionType type,
+            EntryType type,
 
             @RequestParam(name = "from", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -75,6 +70,6 @@ public class WalletController {
             @Min(value = 1, message = "page_size must be at least 1")
             @Max(value = 100, message = "page_size cannot exceed 100")
             int pageSize) {
-        return ResponseEntity.ok(transactionService.getTransactions(walletId, type, from, to, page, pageSize));
+        return ResponseEntity.ok(transactionService.getTransactions(phone, type, from, to, page, pageSize));
     }
 }
