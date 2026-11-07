@@ -219,6 +219,28 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void paymentCapturedForAnotherWalletIsRejected() {
+        assertError(addMoney(phone, "key-1", 50000, ref("GW-OTHERWALLET-1"), "VISA"), 422, "PAYMENT_MISMATCH");
+        assertEquals(0, ledgerEntries());
+        assertEquals(0, balanceOf(phone));
+    }
+
+    @Test
+    void gatewayIsToldWhichWalletThePaymentIsFor() {
+        addMoney("+8801711000001", "key-1", 50000, ref("GW-REF-1"), "VISA");
+
+        String found = RestClient.create(paymentGatewayUrl()).post()
+                .uri("/__admin/requests/find")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                        {"method": "POST", "url": "/visa/v1/payments/verify"}""")
+                .retrieve().body(String.class);
+        JsonNode requests = JSON.readTree(found).get("requests");
+        assertEquals(1, requests.size());
+        assertEquals(phone, JSON.readTree(requests.get(0).get("body").asString()).get("merchant_reference").asString());
+    }
+
+    @Test
     void gatewayTimeoutIsReportedAsGatewayError() {
         assertError(addMoney(phone, "key-1", 50000, ref("GW-TIMEOUT-1"), "VISA"), 502, "PAYMENT_GATEWAY_ERROR");
         assertEquals(0, ledgerEntries());
@@ -415,7 +437,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     /** Mock-gateway scenario prefixes (see docker/wiremock): the first UUID group picks the outcome. */
     private static final Map<String, String> SCENARIO_PREFIXES = Map.of(
             "DECLINED", "00000402", "PENDING", "00000202", "NOTFOUND", "00000404",
-            "MISMATCH", "00000422", "ERROR", "00000500", "TIMEOUT", "00000504");
+            "MISMATCH", "00000422", "OTHERWALLET", "00000423", "ERROR", "00000500", "TIMEOUT", "00000504");
 
     /**
      * Deterministic gateway_ref (a UUID) for a readable test name. A name containing a scenario
