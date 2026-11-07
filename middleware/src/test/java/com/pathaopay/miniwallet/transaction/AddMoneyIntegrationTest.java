@@ -357,8 +357,11 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void unknownPaymentIsRejected() {
-        assertFailed(addMoneyAndAwait(phone, "key-1", 50000, ref("GW-NOTFOUND-1"), "VISA"), "PAYMENT_NOT_FOUND");
+    void unknownPaymentIsRetriedBecauseTheCustomerMayHaveJustPaid() {
+        JsonNode failed = addMoneyAndAwait(phone, "key-1", 50000, ref("GW-NOTFOUND-1"), "VISA");
+        assertFailed(failed, "PAYMENT_NOT_FOUND");
+        assertEquals(ADD_MONEY_MAX_ATTEMPTS, failed.get("attempts").asInt());
+        assertEquals(0, ledgerEntries());
     }
 
     @Test

@@ -26,7 +26,8 @@ public record AddMoneyMessagingProperties(
 ) {
     public AddMoneyMessagingProperties {
         retryDelays = retryDelays == null || retryDelays.isEmpty()
-                ? List.of(Duration.ofSeconds(5), Duration.ofSeconds(30), Duration.ofMinutes(2))
+                ? List.of(Duration.ofSeconds(5), Duration.ofSeconds(30), Duration.ofMinutes(2),
+                Duration.ofMinutes(10), Duration.ofMinutes(30))
                 : List.copyOf(retryDelays);
         dispatchBatchSize = dispatchBatchSize > 0 ? dispatchBatchSize : 50;
         republishAfter = republishAfter == null ? Duration.ofMinutes(10) : republishAfter;

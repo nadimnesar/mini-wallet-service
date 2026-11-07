@@ -78,8 +78,9 @@ paths:
       summary: Request to add money from a card payment (asynchronous)
       description: >-
         Validates the request and queues it; the card gateway is checked and the wallet credited afterwards by a worker.
-        Poll the Location URL for the outcome. A gateway outage or timeout is retried with backoff (default: after 5 s,
-        30 s and 2 min, so up to 4 attempts) before the request fails. Everything that needs no gateway (amount limits,
+        Poll the Location URL for the outcome. A gateway outage, a payment not captured yet or a payment the gateway does not
+        know yet is retried with backoff (default: after 5 s, 30 s, 2 min, 10 min and 30 min, so up to 6 attempts) before
+        the request fails. Everything that needs no gateway (amount limits,
         wallet, unused gateway_ref) is still rejected immediately with the errors below.
       operationId: addMoney
       tags: [Wallets]
