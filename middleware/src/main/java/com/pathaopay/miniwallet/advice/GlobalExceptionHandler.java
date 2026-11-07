@@ -38,6 +38,7 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
             Map.entry(ErrorCode.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.ADD_MONEY_REQUEST_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.DUPLICATE_WALLET, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),

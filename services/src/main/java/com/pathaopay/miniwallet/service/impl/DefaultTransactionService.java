@@ -1,7 +1,9 @@
 package com.pathaopay.miniwallet.service.impl;
 
+import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
 import com.pathaopay.miniwallet.client.PaymentVerification;
+import com.pathaopay.miniwallet.client.messaging.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
@@ -10,6 +12,7 @@ import com.pathaopay.miniwallet.common.exception.idempotency.ReplayedFailureExce
 import com.pathaopay.miniwallet.common.exception.payment.DuplicateGatewayRefException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentDeclinedException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchException;
+import com.pathaopay.miniwallet.common.exception.transaction.AddMoneyRequestNotFoundException;
 import com.pathaopay.miniwallet.common.exception.transaction.InsufficientBalanceException;
 import com.pathaopay.miniwallet.common.exception.transaction.InvalidAmountException;
 import com.pathaopay.miniwallet.common.exception.transaction.InvalidDateRangeException;
@@ -21,16 +24,19 @@ import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.dto.request.*;
 import com.pathaopay.miniwallet.dto.response.*;
+import com.pathaopay.miniwallet.model.AddMoneyRequestRecord;
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
 import com.pathaopay.miniwallet.model.LedgerEntryView;
 import com.pathaopay.miniwallet.model.LedgerTransaction;
 import com.pathaopay.miniwallet.model.TransactionLimit;
+import com.pathaopay.miniwallet.model.enums.AddMoneyStatus;
 import com.pathaopay.miniwallet.model.enums.TransactionType;
 import com.pathaopay.miniwallet.model.TransactionFilter;
 import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.LedgerEntry;
 import com.pathaopay.miniwallet.model.enums.WalletType;
+import com.pathaopay.miniwallet.repository.AddMoneyRequestRepository;
 import com.pathaopay.miniwallet.repository.FeeRepository;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
 import com.pathaopay.miniwallet.repository.LimitRepository;
@@ -72,29 +78,119 @@ public class DefaultTransactionService implements TransactionService {
     private final FeeRepository feeRepository;
     private final IdempotencyRepository idempotencyRepository;
     private final LimitRepository limitRepository;
+    private final AddMoneyRequestRepository addMoneyRequestRepository;
     private final PaymentGatewayClient paymentGatewayClient;
+    private final AddMoneyQueueClient addMoneyQueueClient;
+    private final AddMoneyMessagingProperties messagingProperties;
     private final TransactionTemplate transactionTemplate;
 
     /**
-     * Credits the wallet once the card network's gateway confirms the payment.
-     *
-     * <p>Trade-off: the transaction stays open during the gateway call (bounded by the gateway
-     * read timeout), holding a connection and the key's row lock, but no wallet lock.
+     * Accepts an add-money request: checks everything that needs no gateway (amount limits, a customer wallet, an
+     * unused gateway_ref) and stores a PENDING request, all under the Idempotency-Key. The gateway call and the
+     * credit happen later in {@link #processAddMoney}, so no connection is held while the gateway answers.
      *
      * @see #executeIdempotently
      */
     @Override
-    public AddMoneyResponse addMoney(AddMoneyRequest request, String idempotencyKey) {
+    public AddMoneyStatusResponse addMoney(AddMoneyRequest request, String idempotencyKey) {
         String phone = PhoneNumberUtils.normalize(request.phone());
         String requestHash = sha256Hex(String.join("\n", ADD_MONEY_OPERATION, phone,
                 request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name()));
 
         return executeIdempotently(idempotencyKey, ADD_MONEY_OPERATION, requestHash, () -> {
-            AddMoneyResponse response = creditWallet(phone, request);
-            log.info("Added money: transactionId={} phone={} amount={} balance={} gatewayRef={}",
-                    response.transactionId(), phone, response.addedAmount(), response.balance(), request.gatewayRef());
-            return new Created<>(response.transactionId(), response);
+            requireWithinLimit(TransactionType.ADD_MONEY, request.amount(), 0);
+            Wallet wallet = requireCustomerWallet(phone);
+            // Cheap early exit; the unique indexes on gateway_ref are the real guard.
+            if (transactionRepository.existsByGatewayRef(request.gatewayRef())) {
+                throw duplicateGatewayRef(request.gatewayRef());
+            }
+            AddMoneyRequestRecord accepted = addMoneyRequestRepository.insert(new AddMoneyRequestRecord(
+                            UuidGenerator.v7(), wallet.id(), request.amount(), request.gatewayRef(),
+                            request.paymentMethod(), AddMoneyStatus.PENDING, 0, null, null, null, null, null))
+                    .orElseThrow(() -> duplicateGatewayRef(request.gatewayRef()));
+            log.info("Accepted add-money request: requestId={} phone={} amount={} gatewayRef={}",
+                    accepted.id(), phone, accepted.amount(), accepted.gatewayRef());
+            return new Created<>(accepted.id(), toAddMoneyStatus(accepted, phone));
         }, this::rebuildAddMoney);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AddMoneyStatusResponse getAddMoneyRequest(UUID requestId) {
+        return rebuildAddMoney(requestId);
+    }
+
+    /**
+     * Verifies the payment and credits the wallet for one accepted request, in one database transaction that holds the
+     * request row's lock (so a duplicate delivery waits, then sees a final status and skips). Trade-off: the
+     * transaction stays open during the gateway call (bounded by the gateway read timeout), holding a connection and
+     * that row lock, but no wallet lock.
+     *
+     * <p>A deterministic failure (declined, mismatch, ...) makes the request FAILED. A retryable one is counted and
+     * left PENDING, then the request is parked on the retry queue, or, when the attempts are used up, FAILED and
+     * dead-lettered. The broker is called after the database transaction committed.
+     */
+    @Override
+    public void processAddMoney(UUID requestId) {
+        int maxAttempts = messagingProperties.maxAttempts();
+        Processing processing = transactionTemplate.execute(status -> {
+            AddMoneyRequestRecord request = addMoneyRequestRepository.lockById(requestId).orElse(null);
+            if (request == null) {
+                log.warn("Add-money message for an unknown request, dropped: requestId={}", requestId);
+                return Processing.none();
+            }
+            if (request.status() != AddMoneyStatus.PENDING) {
+                log.info("Add-money request already {}, skipped: requestId={}", request.status(), requestId);
+                return Processing.none();
+            }
+            int attempt = request.attempts() + 1;
+            try {
+                Credited credited = creditWallet(request);
+                addMoneyRequestRepository.markCompleted(requestId, credited.transaction().id(), attempt);
+                log.info("Added money: requestId={} transactionId={} amount={} balance={} gatewayRef={} attempt={}",
+                        requestId, credited.transaction().id(), request.amount(), credited.credit().balanceAfter(),
+                        request.gatewayRef(), attempt);
+                return Processing.none();
+            } catch (MiniWalletException e) {
+                if (!e.isRetryable()) {
+                    log.info("Add-money request rejected: requestId={} code={} message={} attempt={}",
+                            requestId, e.getErrorCode(), e.getMessage(), attempt);
+                    addMoneyRequestRepository.markFailed(requestId, attempt, e.getErrorCode(), e.getMessage());
+                    return Processing.none();
+                }
+                if (attempt < maxAttempts) {
+                    log.warn("Add-money attempt failed, will retry: requestId={} code={} attempt={}/{}",
+                            requestId, e.getErrorCode(), attempt, maxAttempts);
+                    addMoneyRequestRepository.recordRetry(requestId, attempt, e.getErrorCode(), e.getMessage());
+                    return Processing.retry(attempt);
+                }
+                String message = ErrorMessage.RETRIES_EXHAUSTED.formatted(e.getMessage(), attempt);
+                log.error("Add-money request gave up: requestId={} code={} attempts={}", requestId, e.getErrorCode(), attempt);
+                addMoneyRequestRepository.markFailed(requestId, attempt, e.getErrorCode(), message);
+                return Processing.exhausted(e.getErrorCode() + ": " + message);
+            }
+        });
+        if (processing.retryAfterAttempt() > 0) {
+            addMoneyQueueClient.scheduleRetry(requestId, processing.retryAfterAttempt());
+        } else if (processing.deadLetterReason() != null) {
+            addMoneyQueueClient.deadLetter(requestId, processing.deadLetterReason());
+        }
+    }
+
+    /** What to do with the broker once the database transaction of {@link #processAddMoney} is over. */
+    private record Processing(int retryAfterAttempt, String deadLetterReason) {
+        /** Nothing for the broker: the request finished (credited or rejected) or was not ours to process. */
+        static Processing none() {
+            return new Processing(0, null);
+        }
+
+        static Processing retry(int failedAttempts) {
+            return new Processing(failedAttempts, null);
+        }
+
+        static Processing exhausted(String reason) {
+            return new Processing(0, reason);
+        }
     }
 
     /**
@@ -154,10 +250,11 @@ public class DefaultTransactionService implements TransactionService {
 
     /**
      * Records the add-money transaction: DEBIT the gateway clearing asset account and CREDIT the customer's liability
-     * wallet, both for the captured amount.
+     * wallet, both for the captured amount, once the card gateway confirms the payment.
      */
-    private AddMoneyResponse creditWallet(String phone, AddMoneyRequest request) {
+    private Credited creditWallet(AddMoneyRequestRecord request) {
         requireWithinLimit(TransactionType.ADD_MONEY, request.amount(), 0);
+        String phone = phoneOf(request.walletId());
         Wallet wallet = requireCustomerWallet(phone);
         UUID walletId = wallet.id();
         // Cheap early exit; the unique gateway_ref is the real guard (see insertAddMoney below).
@@ -180,7 +277,10 @@ public class DefaultTransactionService implements TransactionService {
                 request.amount(), clearingId, transaction.id());
         chains.get(clearingId).append(transactionRepository, EntryType.GATEWAY_CLEARING, request.amount(), walletId,
                 transaction.id());
-        return toAddMoneyResponse(transaction, credit, phone);
+        return new Credited(transaction, credit);
+    }
+
+    private record Credited(LedgerTransaction transaction, LedgerEntry credit) {
     }
 
     /**
@@ -291,7 +391,7 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request,
+    private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequestRecord request,
                                                   String phone) {
         if (payment.status() != PaymentVerification.Status.CAPTURED) {
             throw new PaymentDeclinedException(ErrorMessage.PAYMENT_DECLINED.formatted(
@@ -326,9 +426,10 @@ public class DefaultTransactionService implements TransactionService {
         return Outcome.failure(new ReplayedFailureException(record.errorCode(), record.errorMessage()));
     }
 
-    private AddMoneyResponse rebuildAddMoney(UUID transactionId) {
-        LedgerEntry credit = requireEntry(transactionId, EntryType.ADD_MONEY);
-        return toAddMoneyResponse(requireTransaction(transactionId), credit, phoneOf(credit.walletId()));
+    private AddMoneyStatusResponse rebuildAddMoney(UUID requestId) {
+        AddMoneyRequestRecord request = addMoneyRequestRepository.findById(requestId)
+                .orElseThrow(() -> new AddMoneyRequestNotFoundException(requestId.toString()));
+        return toAddMoneyStatus(request, phoneOf(request.walletId()));
     }
 
     private TransferResponse rebuildTransfer(UUID transferId) {
@@ -357,9 +458,12 @@ public class DefaultTransactionService implements TransactionService {
         return new DuplicateGatewayRefException(ErrorMessage.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
     }
 
-    private static AddMoneyResponse toAddMoneyResponse(LedgerTransaction transaction, LedgerEntry credit, String phone) {
-        return new AddMoneyResponse(transaction.id(), credit.walletId(), phone, transaction.amount(), credit.balanceAfter(),
-                transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt());
+    private AddMoneyStatusResponse toAddMoneyStatus(AddMoneyRequestRecord request, String phone) {
+        Long balance = request.transactionId() == null ? null
+                : requireEntry(request.transactionId(), EntryType.ADD_MONEY).balanceAfter();
+        return new AddMoneyStatusResponse(request.id(), request.status(), request.walletId(), phone, request.amount(),
+                request.gatewayRef(), request.paymentMethod(), request.attempts(), request.transactionId(), balance,
+                request.errorCode(), request.errorMessage(), request.createdAt(), request.updatedAt());
     }
 
     private static String sha256Hex(String value) {

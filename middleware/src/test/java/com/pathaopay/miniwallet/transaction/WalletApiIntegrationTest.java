@@ -1,10 +1,7 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
-import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
-import com.pathaopay.miniwallet.model.enums.PaymentMethod;
-import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,9 +31,6 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
-
-    @Autowired
-    private TransactionService transactionService;
 
     private RestClient api;
 
@@ -75,8 +69,8 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
     @Test
     void balanceFollowsTheLatestLedgerEntry() {
         Instant before = Instant.parse(get("/api/v1/wallets/" + PHONE + "/balance").get("updated_at").asString());
-        transactionService.addMoney(new AddMoneyRequest(PHONE, 50000L, UUID.randomUUID(), PaymentMethod.VISA), "k1");
-        transactionService.addMoney(new AddMoneyRequest(PHONE, 20000L, UUID.randomUUID(), PaymentMethod.VISA), "k2");
+        topUp(PHONE, 50000L, "k1");
+        topUp(PHONE, 20000L, "k2");
 
         JsonNode balance = get("/api/v1/wallets/+880" + PHONE.substring(1) + "/balance");
 

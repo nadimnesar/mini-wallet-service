@@ -1,11 +1,8 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
-import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.request.TransferRequest;
-import com.pathaopay.miniwallet.model.enums.PaymentMethod;
-import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,9 +30,6 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private WalletService walletService;
 
-    @Autowired
-    private TransactionService transactionService;
-
     private RestClient api;
     private String alice;
     private String bob;
@@ -46,7 +40,7 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
         api = RestClient.create("http://localhost:" + port);
         alice = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000001")).phone();
         bob = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000002")).phone();
-        transactionService.addMoney(new AddMoneyRequest(alice, 50000L, UUID.randomUUID(), PaymentMethod.VISA), "k1");
+        topUp(alice, 50000L, "k1");
         transferId = UUID.fromString(transactionService
                 .transfer(new TransferRequest(alice, bob, 10000L, "Lunch"), "k2").transferId().toString());
         transactionService.transfer(new TransferRequest(alice, bob, 5000L, null), "k3");

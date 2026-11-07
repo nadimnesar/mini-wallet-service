@@ -17,7 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.time.Instant;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(path = "/api/v1/wallets")
@@ -46,11 +48,18 @@ public class WalletController {
     }
 
     @PostMapping("/add-money")
-    public ResponseEntity<AddMoneyResponse> addMoney(
+    public ResponseEntity<AddMoneyStatusResponse> addMoney(
             @RequestHeader(name = "Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
             @RequestBody @Valid AddMoneyRequest request) {
-        AddMoneyResponse response = transactionService.addMoney(request, idempotencyKey);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        AddMoneyStatusResponse response = transactionService.addMoney(request, idempotencyKey);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .location(URI.create("/api/v1/wallets/add-money/" + response.requestId()))
+                .body(response);
+    }
+
+    @GetMapping("/add-money/{requestId}")
+    public ResponseEntity<AddMoneyStatusResponse> getAddMoneyRequest(@PathVariable("requestId") UUID requestId) {
+        return ResponseEntity.ok(transactionService.getAddMoneyRequest(requestId));
     }
 
     @GetMapping("/{phone}/transactions")

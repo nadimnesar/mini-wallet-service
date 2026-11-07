@@ -4,11 +4,8 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
-import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
-import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import com.pathaopay.miniwallet.model.enums.WalletType;
-import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,9 +41,6 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
-
-    @Autowired
-    private TransactionService transactionService;
 
     private RestClient api;
     private String alice;
@@ -352,8 +346,7 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void fund(String phone, long amount) {
-        transactionService.addMoney(new AddMoneyRequest(phone, amount, UUID.randomUUID(), PaymentMethod.VISA),
-                "fund-" + UUID.randomUUID());
+        topUp(phone, amount, "fund-" + UUID.randomUUID());
     }
 
     private long balance(String phone) {
