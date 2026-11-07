@@ -4,13 +4,14 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
+import com.pathaopay.miniwallet.common.exception.wallet.ReservedUserIdException;
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
-import com.pathaopay.miniwallet.dto.BalanceResponse;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.dto.WalletResponse;
-import com.pathaopay.miniwallet.model.Currency;
+import com.pathaopay.miniwallet.dto.response.BalanceResponse;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.response.WalletResponse;
+import com.pathaopay.miniwallet.model.enums.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.WalletBalance;
 import com.pathaopay.miniwallet.repository.WalletRepository;
@@ -32,10 +33,10 @@ public class DefaultWalletService implements WalletService {
     @Override
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
-        String phone = PhoneNumberUtils.normalize(request.phone());
+        String phone = PhoneNumberUtils.normalizeCustomer(request.phone());
         if (AppConstants.SYSTEM_USER_ID.equals(request.userId())) {
             log.info("Wallet creation rejected, user_id is reserved for system accounts");
-            throw new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + request.userId());
+            throw new ReservedUserIdException();
         }
         return walletRepository.insertIfAbsent(UuidGenerator.v7(), request.userId(), phone, Currency.BDT)
                 .map(DefaultWalletService::toResponse)
@@ -63,14 +64,12 @@ public class DefaultWalletService implements WalletService {
         return new IllegalStateException("Wallet insert skipped without a user_id or phone conflict");
     }
 
-    /** Served by the read replica. */
     @Override
     @Transactional(readOnly = true)
     public WalletResponse getWallet(String phone) {
         return toResponse(requireWallet(phone));
     }
 
-    /** Served by the read replica; the balance may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public BalanceResponse getBalance(String phone) {

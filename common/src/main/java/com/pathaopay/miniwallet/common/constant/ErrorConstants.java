@@ -33,6 +33,8 @@ public final class ErrorConstants {
         public static final String INVALID_DATE_RANGE = "INVALID_DATE_RANGE";
         public static final String NOT_FOUND = "NOT_FOUND";
         public static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
+        public static final String UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE";
+        public static final String NOT_ACCEPTABLE = "NOT_ACCEPTABLE";
         public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
     }
 
@@ -50,11 +52,18 @@ public final class ErrorConstants {
         public static final String INVALID_FIELD_VALUE = "Invalid value for field: %s";
         public static final String INVALID_ARGUMENT_PREFIX = "Invalid argument for parameter: ";
         public static final String WALLET_NOT_FOUND_PREFIX = "Wallet not found with phone: ";
+        public static final String RESERVED_USER_ID = "user_id is reserved for system accounts and cannot be used";
         public static final String DUPLICATE_WALLET_PREFIX = "A wallet already exists for user_id: ";
         public static final String DUPLICATE_PHONE_PREFIX = "A wallet already exists for phone: ";
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
         /** Format with the sender phone. */
         public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer and its fee.";
+        /** Format with the minimum amount in poisha and in BDT. */
+        public static final String AMOUNT_BELOW_MIN = "amount must be at least %d poisha (%s BDT)";
+        /** Format with the maximum amount in poisha and in BDT. */
+        public static final String AMOUNT_ABOVE_MAX = "amount must be at most %d poisha (%s BDT)";
+        /** Format with the fee, the single-transaction limit and the resulting maximum amount, each in poisha and BDT. */
+        public static final String AMOUNT_PLUS_FEE_ABOVE_MAX = "amount plus the transfer fee of %d poisha (%s BDT) must be at most %d poisha (%s BDT), so amount must be at most %d poisha (%s BDT)";
         public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
         /** Format with the wallet phone and its account type. */
         public static final String SYSTEM_WALLET_NOT_ALLOWED =
@@ -74,8 +83,11 @@ public final class ErrorConstants {
         public static final String PAYMENT_GATEWAY_ERROR = "%s payment gateway is unavailable. Please retry later.";
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = AppConstants.PHONE_FORMAT;
+        public static final String CUSTOMER_PHONE_FORMAT = AppConstants.CUSTOMER_PHONE_FORMAT;
         /** Format with the HTTP method. */
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
+        public static final String UNSUPPORTED_MEDIA_TYPE = "Content-Type is not supported, use application/json";
+        public static final String NOT_ACCEPTABLE = "This API only produces application/json";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
     }

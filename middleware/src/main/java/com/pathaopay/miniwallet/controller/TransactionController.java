@@ -1,8 +1,8 @@
 package com.pathaopay.miniwallet.controller;
 
-import com.pathaopay.miniwallet.dto.TransactionDetailResponse;
-import com.pathaopay.miniwallet.dto.TransactionPageResponse;
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.dto.response.TransactionDetailResponse;
+import com.pathaopay.miniwallet.dto.response.TransactionPageResponse;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

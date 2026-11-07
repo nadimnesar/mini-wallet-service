@@ -1,8 +1,8 @@
 package com.pathaopay.miniwallet.service;
 
-import com.pathaopay.miniwallet.dto.BalanceResponse;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.dto.WalletResponse;
+import com.pathaopay.miniwallet.dto.response.BalanceResponse;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.response.WalletResponse;
 
 public interface WalletService {
     WalletResponse createWallet(CreateWalletRequest request);

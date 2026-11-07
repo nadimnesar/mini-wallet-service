@@ -4,12 +4,15 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
-import com.pathaopay.miniwallet.dto.ErrorResponse;
+import com.pathaopay.miniwallet.dto.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -28,6 +31,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
+            Map.entry(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.INVALID_PHONE_NUMBER, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.INVALID_DATE_RANGE, HttpStatus.BAD_REQUEST),
@@ -131,6 +135,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ErrorResponse.of(ErrorCode.METHOD_NOT_ALLOWED, ErrorMessage.METHOD_NOT_SUPPORTED.formatted(ex.getMethod())));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).contentType(MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(ErrorCode.UNSUPPORTED_MEDIA_TYPE, ErrorMessage.UNSUPPORTED_MEDIA_TYPE));
+    }
+
+    /** The content type is set explicitly: the client's Accept header rules out the default JSON negotiation. */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).contentType(MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(ErrorCode.NOT_ACCEPTABLE, ErrorMessage.NOT_ACCEPTABLE));
     }
 
     @ExceptionHandler(Exception.class)

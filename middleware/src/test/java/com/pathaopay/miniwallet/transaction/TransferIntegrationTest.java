@@ -1,11 +1,13 @@
 package com.pathaopay.miniwallet.transaction;
 
 import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
-import com.pathaopay.miniwallet.dto.AddMoneyRequest;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
-import com.pathaopay.miniwallet.model.PaymentMethod;
-import com.pathaopay.miniwallet.model.WalletType;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
+import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
+import com.pathaopay.miniwallet.model.enums.WalletType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
@@ -30,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** End-to-end P2P transfers over HTTP against real PostgreSQL: atomicity, locking and idempotency. */
 class TransferIntegrationTest extends AbstractIntegrationTest {
@@ -71,6 +74,7 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(walletService.getWallet(bob).walletId().toString(), response.body().get("to_wallet_id").asString());
         assertEquals(10000, response.body().get("amount").asLong());
         assertEquals(500, response.body().get("fee").asLong());
+        assertEquals("Lunch", response.body().get("note").asString());
         assertEquals("COMPLETED", response.body().get("status").asString());
         assertEquals(39500, balance(alice));
         assertEquals(10000, balance(bob));
@@ -90,6 +94,50 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(first.body(), replay.body());
         assertEquals(39500, balance(alice));
         assertEquals(10000, balance(bob));
+        assertEquals("Lunch", replay.body().get("note").asString());
+    }
+
+    @Test
+    void feeIsReadFromTheFeesTableAndAReplayKeepsTheFeeThatWasCharged() {
+        Response first = transfer("key-1", alice, bob, 10000, null);
+        assertEquals(500, first.body().get("fee").asLong());
+
+        setTransferFee(700);
+        try {
+            Response second = transfer("key-2", alice, bob, 10000, null);
+            Response replay = transfer("key-1", alice, bob, 10000, null);
+
+            assertEquals(700, second.body().get("fee").asLong());
+            assertEquals(first.body(), replay.body(), "a replay returns the fee of the original transfer");
+            assertEquals(50000 - 10500 - 10700, balance(alice));
+            assertEquals(1200, balance(REVENUE));
+        } finally {
+            setTransferFee(500);
+        }
+    }
+
+    @Test
+    void transferNeedsBalanceForTheConfiguredFee() {
+        setTransferFee(2000);
+        try {
+            assertError(transfer("key-1", alice, bob, 48500, null), 422, "INSUFFICIENT_BALANCE");
+            assertEquals(201, transfer("key-2", alice, bob, 48000, null).status());
+        } finally {
+            setTransferFee(500);
+        }
+    }
+
+    private void setTransferFee(long poisha) {
+        jdbcClient.sql("UPDATE " + Fees.TABLE + " SET " + Fees.AMOUNT + " = :amount WHERE "
+                + Fees.TRANSACTION_TYPE + " = 'TRANSFER'").param("amount", poisha).update();
+    }
+
+    @Test
+    void noteIsOptionalAndMustNotBeEmptyOrTooLong() {
+        assertTrue(transfer("key-1", alice, bob, 10000, null).body().get("note").isNull());
+        assertError(transfer("key-2", alice, bob, 10000, ""), 400, "VALIDATION_ERROR");
+        assertError(transfer("key-3", alice, bob, 10000, "x".repeat(256)), 400, "VALIDATION_ERROR");
+        assertEquals(201, transfer("key-4", alice, bob, 10000, "x".repeat(255)).status());
     }
 
     @Test
@@ -184,8 +232,44 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void amountOutsideLimitsIsRejected() {
-        assertError(transfer("key-1", alice, bob, 99, null), 400, "VALIDATION_ERROR");
-        assertError(transfer("key-2", alice, bob, 2_500_001, null), 400, "VALIDATION_ERROR");
+        assertError(transfer("key-1", alice, bob, 99, null), 400, "INVALID_AMOUNT");
+        assertError(transfer("key-2", alice, bob, 2_500_001, null), 400, "INVALID_AMOUNT");
+    }
+
+    @Test
+    void amountPlusFeeMustStayWithinTheSingleTransactionLimit() {
+        fund(alice, 2_500_000);
+
+        Response tooMuch = transfer("key-1", alice, bob, 2_500_000, null);
+        assertError(tooMuch, 400, "INVALID_AMOUNT");
+        assertEquals("amount plus the transfer fee of 500 poisha (5 BDT) must be at most 2500000 poisha (25000 BDT), "
+                + "so amount must be at most 2499500 poisha (24995 BDT)", tooMuch.body().get("error").get("message").asString());
+        assertEquals(2_550_000, balance(alice));
+
+        Response atTheLimit = transfer("key-2", alice, bob, 2_499_500, null);
+        assertEquals(201, atTheLimit.status());
+        assertEquals(500, atTheLimit.body().get("fee").asLong());
+        assertEquals(2_550_000 - 2_500_000, balance(alice));
+    }
+
+    @Test
+    void limitIsReadFromTheLimitsTableAndFollowsTheFee() {
+        setTransferLimit(1000, 20000);
+        setTransferFee(1000);
+        try {
+            assertError(transfer("key-1", alice, bob, 999, null), 400, "INVALID_AMOUNT");
+            assertError(transfer("key-2", alice, bob, 19001, null), 400, "INVALID_AMOUNT");
+            assertEquals(201, transfer("key-3", alice, bob, 19000, null).status());
+        } finally {
+            setTransferFee(500);
+            setTransferLimit(100, 2_500_000);
+        }
+    }
+
+    private void setTransferLimit(long min, long max) {
+        jdbcClient.sql("UPDATE " + Limits.TABLE + " SET " + Limits.MIN_AMOUNT + " = :min, " + Limits.MAX_AMOUNT
+                + " = :max WHERE " + Limits.TRANSACTION_TYPE + " = 'TRANSFER'")
+                .param("min", min).param("max", max).update();
     }
 
     @Test

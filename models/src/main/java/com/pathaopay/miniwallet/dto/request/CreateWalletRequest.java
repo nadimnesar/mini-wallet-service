@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
@@ -14,7 +14,7 @@ public record CreateWalletRequest(
         UUID userId,
 
         @NotBlank(message = AppConstants.PHONE_REQUIRED)
-        @Pattern(regexp = AppConstants.PHONE_ACCEPTED_PATTERN, message = AppConstants.PHONE_FORMAT)
+        @Pattern(regexp = AppConstants.CUSTOMER_PHONE_ACCEPTED_PATTERN, message = AppConstants.CUSTOMER_PHONE_FORMAT)
         @JsonProperty("phone")
         String phone
 ) {}

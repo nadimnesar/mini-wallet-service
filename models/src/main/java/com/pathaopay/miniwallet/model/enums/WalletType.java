@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.model;
+package com.pathaopay.miniwallet.model.enums;
 
 /**
  * Account class of a ledger wallet (the five classes of double-entry bookkeeping). Customer wallets are

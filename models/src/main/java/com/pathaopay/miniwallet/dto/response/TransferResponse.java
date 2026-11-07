@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.dto;
+package com.pathaopay.miniwallet.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -27,6 +27,9 @@ public record TransferResponse(
 
         @JsonProperty("fee")
         long fee,
+
+        @JsonProperty("note")
+        String note,
 
         @JsonProperty("status")
         String status,

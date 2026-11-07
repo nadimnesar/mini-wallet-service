@@ -4,7 +4,7 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
-import com.pathaopay.miniwallet.dto.CreateWalletRequest;
+import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -136,9 +136,9 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void amountMustBeWithinLimits() {
-        assertRejected(() -> addMoney(alice, 1, 99, 0, "GW-1"));
-        assertRejected(() -> addMoney(alice, 1, 2_500_001, 0, "GW-2"));
+    void amountMustBePositive() {
+        assertRejected(() -> addMoney(alice, 1, 0, 0, "GW-1"));
+        assertRejected(() -> addMoney(alice, 1, -100, 0, "GW-2"));
     }
 
     @Test
@@ -188,9 +188,9 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void transactionAmountMustBeWithinLimits() {
-        assertRejected(() -> insertTransaction("TRANSFER", 99, null, null));
-        assertRejected(() -> insertTransaction("TRANSFER", 2_500_001, null, null));
+    void transactionAmountMustBePositive() {
+        assertRejected(() -> insertTransaction("TRANSFER", 0, null, null));
+        assertRejected(() -> insertTransaction("TRANSFER", -100, null, null));
     }
 
     @Test
@@ -247,6 +247,10 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "12345"));
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01711000001"));
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, AppConstants.REVENUE_WALLET_PHONE));
+        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01011000001"));
+        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01211000001"));
+        insertWallet("LIABILITY", UUID.randomUUID(), "01311000001");
+        insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01011000009");
         insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01911000003");
     }
 

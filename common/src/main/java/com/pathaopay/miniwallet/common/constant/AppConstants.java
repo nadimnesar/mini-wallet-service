@@ -14,10 +14,6 @@ public final class AppConstants {
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
     public static final long POISHA_PER_BDT = 100;
-    public static final long MIN_AMOUNT_POISHA = 100;
-    public static final long MAX_AMOUNT_POISHA = 2_500_000;
-    /** Fee charged to the sender on top of every transfer: 5 BDT. */
-    public static final long TRANSFER_FEE_POISHA = 5 * POISHA_PER_BDT;
     /** Owner (user_id) shared by every system account; no customer wallet can use it. Seeded by Liquibase. */
     public static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000002");
     /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */
@@ -25,8 +21,9 @@ public final class AppConstants {
     /** EQUITY account for the owners' capital; no flow posts to it yet. */
     public static final UUID OWNER_EQUITY_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000006");
     /**
-     * Phone numbers of the system accounts. The 010 prefix is not assigned to any operator, so no real customer
-     * number collides; the unique phone constraint rejects a customer who tries to register one anyway.
+     * Phone numbers of the system accounts. The 010 prefix is not assigned to any operator, and customer wallets
+     * can only be registered with an assigned prefix ({@link #CUSTOMER_PHONE_ACCEPTED_PATTERN}), so no customer can
+     * ever hold a system number.
      */
     public static final String REVENUE_WALLET_PHONE = "01000000001";
     public static final String GATEWAY_CLEARING_WALLET_PHONE = "01000000003";
@@ -50,6 +47,8 @@ public final class AppConstants {
      * Group 1 captures the 10-digit subscriber number (1XXXXXXXXX).
      */
     public static final String PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
+    /** Same formats, but only the operator prefixes in use (013-019); required to register a customer wallet. */
+    public static final String CUSTOMER_PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1[3-9]\\d{8})$";
 
     // ---- Request validation limits, patterns and messages
     public static final int NOTE_MAX_LENGTH = 255;
@@ -59,6 +58,7 @@ public final class AppConstants {
     public static final String PHONE_REQUIRED = "phone is required";
     public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
             + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
+    public static final String CUSTOMER_PHONE_FORMAT = PHONE_FORMAT + ", with an assigned operator prefix (013-019)";
 
     public static final String FROM_PHONE_REQUIRED = "from_phone is required";
 
@@ -67,12 +67,8 @@ public final class AppConstants {
     public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
 
     public static final String AMOUNT_REQUIRED = "amount is required";
-    public static final String AMOUNT_MIN = "amount must be at least " + MIN_AMOUNT_POISHA
-            + " poisha (" + MIN_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
-    public static final String AMOUNT_MAX = "amount must be at most " + MAX_AMOUNT_POISHA
-            + " poisha (" + MAX_AMOUNT_POISHA / POISHA_PER_BDT + " BDT)";
 
     public static final String PAYMENT_METHOD_REQUIRED = "payment_method is required";
 
-    public static final String NOTE_SIZE = "note must not exceed " + NOTE_MAX_LENGTH + " characters";
+    public static final String NOTE_SIZE = "note must be 1 to " + NOTE_MAX_LENGTH + " characters";
 }

@@ -3,14 +3,10 @@ package com.pathaopay.miniwallet.common.constant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-/** Database-only constants: datasource settings, table names and column names. */
+/** Database-only constants: table names and column names. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class DbConstants {
 
-    public static final String WRITE_PROPERTIES_PREFIX = "miniwallet.datasource.write";
-    public static final String READ_PROPERTIES_PREFIX = "miniwallet.datasource.read";
-    public static final String WRITE_BEAN = "writeDataSource";
-    public static final String READ_BEAN = "readDataSource";
 
     /** Table {@code wallets}. */
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -33,7 +29,25 @@ public final class DbConstants {
         public static final String AMOUNT = "amount";
         public static final String GATEWAY_REF = "gateway_ref";
         public static final String PAYMENT_METHOD = "payment_method";
+        public static final String NOTE = "note";
         public static final String CREATED_AT = "created_at";
+    }
+
+    /** Table {@code fees}: the fee charged per transaction type, seeded by Liquibase. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class Fees {
+        public static final String TABLE = "fees";
+        public static final String TRANSACTION_TYPE = "transaction_type";
+        public static final String AMOUNT = "amount";
+    }
+
+    /** Table {@code limits}: the smallest and largest amount per transaction type, seeded by Liquibase. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class Limits {
+        public static final String TABLE = "limits";
+        public static final String TRANSACTION_TYPE = "transaction_type";
+        public static final String MIN_AMOUNT = "min_amount";
+        public static final String MAX_AMOUNT = "max_amount";
     }
 
     /** Table {@code ledger_entries}, the append-only ledger. */

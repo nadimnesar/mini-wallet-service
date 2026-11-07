@@ -1,12 +1,14 @@
 package com.pathaopay.miniwallet.model;
 
+import com.pathaopay.miniwallet.model.enums.TransactionType;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import java.time.Instant;
 import java.util.UUID;
 
 /**
  * One business operation: a group of ledger entries whose debits equal its credits. {@code amount} is the principal
  * moved (a transfer's fee is a separate entry pair). {@code gatewayRef} and {@code paymentMethod} are set only for
- * ADD_MONEY. {@code createdAt} is null until persisted.
+ * ADD_MONEY; {@code note} only for TRANSFER (optional). {@code createdAt} is null until persisted.
  */
 public record LedgerTransaction(
         UUID id,
@@ -14,5 +16,6 @@ public record LedgerTransaction(
         long amount,
         UUID gatewayRef,
         PaymentMethod paymentMethod,
+        String note,
         Instant createdAt
 ) {}

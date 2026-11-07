@@ -1,7 +1,7 @@
 package com.pathaopay.miniwallet.client.gateway;
 
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
-import com.pathaopay.miniwallet.model.PaymentMethod;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;

@@ -8,11 +8,13 @@ CREATE TABLE transactions
     amount         BIGINT      NOT NULL,
     gateway_ref    UUID,
     payment_method VARCHAR(16),
+    note           VARCHAR(255),
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT pk_transactions PRIMARY KEY (id),
     CONSTRAINT uq_transactions_gateway_ref UNIQUE (gateway_ref),
     CONSTRAINT ck_transactions_type CHECK (type IN ('ADD_MONEY', 'TRANSFER')),
-    CONSTRAINT ck_transactions_amount CHECK (amount BETWEEN 100 AND 2500000),
+    CONSTRAINT ck_transactions_amount CHECK (amount > 0),
+    CONSTRAINT ck_transactions_note CHECK (note IS NULL OR (type = 'TRANSFER' AND length(note) >= 1)),
     CONSTRAINT ck_transactions_gateway CHECK (
         (type = 'ADD_MONEY' AND gateway_ref IS NOT NULL AND payment_method IS NOT NULL
             AND payment_method IN ('VISA', 'MASTERCARD'))

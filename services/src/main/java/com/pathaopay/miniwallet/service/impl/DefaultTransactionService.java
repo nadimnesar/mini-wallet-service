@@ -11,6 +11,7 @@ import com.pathaopay.miniwallet.common.exception.payment.DuplicateGatewayRefExce
 import com.pathaopay.miniwallet.common.exception.payment.PaymentDeclinedException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchException;
 import com.pathaopay.miniwallet.common.exception.transaction.InsufficientBalanceException;
+import com.pathaopay.miniwallet.common.exception.transaction.InvalidAmountException;
 import com.pathaopay.miniwallet.common.exception.transaction.InvalidDateRangeException;
 import com.pathaopay.miniwallet.common.exception.transaction.SameWalletTransferException;
 import com.pathaopay.miniwallet.common.exception.transaction.SystemWalletException;
@@ -18,17 +19,21 @@ import com.pathaopay.miniwallet.common.exception.transaction.TransactionNotFound
 import com.pathaopay.miniwallet.common.exception.wallet.WalletNotFoundException;
 import com.pathaopay.miniwallet.common.util.PhoneNumberUtils;
 import com.pathaopay.miniwallet.common.util.UuidGenerator;
-import com.pathaopay.miniwallet.dto.*;
+import com.pathaopay.miniwallet.dto.request.*;
+import com.pathaopay.miniwallet.dto.response.*;
 import com.pathaopay.miniwallet.model.IdempotencyRecord;
 import com.pathaopay.miniwallet.model.LedgerEntryView;
 import com.pathaopay.miniwallet.model.LedgerTransaction;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.TransactionLimit;
+import com.pathaopay.miniwallet.model.enums.TransactionType;
 import com.pathaopay.miniwallet.model.TransactionFilter;
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.model.Wallet;
 import com.pathaopay.miniwallet.model.LedgerEntry;
-import com.pathaopay.miniwallet.model.WalletType;
+import com.pathaopay.miniwallet.model.enums.WalletType;
+import com.pathaopay.miniwallet.repository.FeeRepository;
 import com.pathaopay.miniwallet.repository.IdempotencyRepository;
+import com.pathaopay.miniwallet.repository.LimitRepository;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import com.pathaopay.miniwallet.service.TransactionService;
@@ -38,6 +43,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,7 +69,9 @@ public class DefaultTransactionService implements TransactionService {
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
+    private final FeeRepository feeRepository;
     private final IdempotencyRepository idempotencyRepository;
+    private final LimitRepository limitRepository;
     private final PaymentGatewayClient paymentGatewayClient;
     private final TransactionTemplate transactionTemplate;
 
@@ -105,7 +113,7 @@ public class DefaultTransactionService implements TransactionService {
                 request.amount().toString(), request.note() == null ? "" : request.note()));
 
         return executeIdempotently(idempotencyKey, TRANSFER_OPERATION, requestHash, () -> {
-            TransferResponse response = moveMoney(from, to, request.amount());
+            TransferResponse response = moveMoney(from, to, request.amount(), request.note());
             log.info("Transferred money: transferId={} from={} to={} amount={}",
                     response.transferId(), from, to, response.amount());
             return new Created<>(response.transferId(), response);
@@ -149,6 +157,7 @@ public class DefaultTransactionService implements TransactionService {
      * wallet, both for the captured amount.
      */
     private AddMoneyResponse creditWallet(String phone, AddMoneyRequest request) {
+        requireWithinLimit(TransactionType.ADD_MONEY, request.amount(), 0);
         Wallet wallet = requireCustomerWallet(phone);
         UUID walletId = wallet.id();
         // Cheap early exit; the unique gateway_ref is the real guard (see insertAddMoney below).
@@ -165,7 +174,7 @@ public class DefaultTransactionService implements TransactionService {
 
         LedgerTransaction transaction = transactionRepository.insertAddMoney(new LedgerTransaction(
                         UuidGenerator.v7(), TransactionType.ADD_MONEY, request.amount(), request.gatewayRef(),
-                        request.paymentMethod(), null))
+                        request.paymentMethod(), null, null))
                 .orElseThrow(() -> duplicateGatewayRef(request.gatewayRef()));
         LedgerEntry credit = chains.get(walletId).append(transactionRepository, EntryType.ADD_MONEY,
                 request.amount(), clearingId, transaction.id());
@@ -178,7 +187,10 @@ public class DefaultTransactionService implements TransactionService {
      * Records the transfer transaction: DEBIT the sender (amount + fee) and CREDIT the receiver (amount) and the revenue
      * account (fee). Only customer wallets can send or receive.
      */
-    private TransferResponse moveMoney(String from, String to, long amount) {
+    private TransferResponse moveMoney(String from, String to, long amount, String note) {
+        long fee = feeRepository.findAmount(TransactionType.TRANSFER)
+                .orElseThrow(() -> new IllegalStateException("No transfer fee configured in the fees table"));
+        requireWithinLimit(TransactionType.TRANSFER, amount, fee);
         if (from.equals(to)) {
             throw new SameWalletTransferException(ErrorMessage.SAME_WALLET_TRANSFER);
         }
@@ -188,19 +200,42 @@ public class DefaultTransactionService implements TransactionService {
         Map<UUID, Chain> chains = lockAndLoadChains(new TreeSet<>(List.of(senderWallet.id(), receiverWallet.id(), revenue)));
         Chain sender = chains.get(senderWallet.id());
         Chain receiver = chains.get(receiverWallet.id());
-        long fee = AppConstants.TRANSFER_FEE_POISHA;
         if (sender.balance < amount + fee) {
             throw new InsufficientBalanceException(ErrorMessage.INSUFFICIENT_BALANCE.formatted(from));
         }
 
         LedgerTransaction transaction = transactionRepository.insert(
-                new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, null));
+                new LedgerTransaction(UuidGenerator.v7(), TransactionType.TRANSFER, amount, null, null, note, null));
         UUID id = transaction.id();
         LedgerEntry out = sender.append(transactionRepository, EntryType.TRANSFER_OUT, amount, receiverWallet.id(), id);
         sender.append(transactionRepository, EntryType.FEE_OUT, fee, revenue, id);
         receiver.append(transactionRepository, EntryType.TRANSFER_IN, amount, senderWallet.id(), id);
         chains.get(revenue).append(transactionRepository, EntryType.FEE_IN, fee, senderWallet.id(), id);
-        return toTransferResponse(transaction, out, from, to);
+        return toTransferResponse(transaction, out, fee, from, to);
+    }
+
+    /**
+     * Checks {@code amount} against the limits table: it must be at least the minimum, and what the customer is
+     * charged in total ({@code amount + fee}) must not exceed the single-transaction maximum.
+     */
+    private void requireWithinLimit(TransactionType type, long amount, long fee) {
+        TransactionLimit limit = limitRepository.find(type)
+                .orElseThrow(() -> new IllegalStateException("No limit configured in the limits table for " + type));
+        if (amount < limit.minAmount()) {
+            throw new InvalidAmountException(ErrorMessage.AMOUNT_BELOW_MIN.formatted(
+                    limit.minAmount(), bdt(limit.minAmount())));
+        }
+        if (amount + fee > limit.maxAmount()) {
+            long maxAmount = limit.maxAmount() - fee;
+            throw new InvalidAmountException(fee == 0
+                    ? ErrorMessage.AMOUNT_ABOVE_MAX.formatted(limit.maxAmount(), bdt(limit.maxAmount()))
+                    : ErrorMessage.AMOUNT_PLUS_FEE_ABOVE_MAX.formatted(fee, bdt(fee),
+                    limit.maxAmount(), bdt(limit.maxAmount()), maxAmount, bdt(maxAmount)));
+        }
+    }
+
+    private static String bdt(long poisha) {
+        return BigDecimal.valueOf(poisha, 2).stripTrailingZeros().toPlainString();
     }
 
     /**
@@ -298,7 +333,8 @@ public class DefaultTransactionService implements TransactionService {
 
     private TransferResponse rebuildTransfer(UUID transferId) {
         LedgerEntry out = requireEntry(transferId, EntryType.TRANSFER_OUT);
-        return toTransferResponse(requireTransaction(transferId), out, phoneOf(out.walletId()),
+        long fee = requireEntry(transferId, EntryType.FEE_OUT).amount();
+        return toTransferResponse(requireTransaction(transferId), out, fee, phoneOf(out.walletId()),
                 phoneOf(out.counterpartyWalletId()));
     }
 
@@ -357,11 +393,11 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static TransferResponse toTransferResponse(LedgerTransaction transaction, LedgerEntry out, String from,
-                                                         String to) {
+    private static TransferResponse toTransferResponse(LedgerTransaction transaction, LedgerEntry out, long fee,
+                                                         String from, String to) {
         return new TransferResponse(transaction.id(), out.walletId(), from, out.counterpartyWalletId(), to,
                 transaction.amount(),
-                AppConstants.TRANSFER_FEE_POISHA, TRANSFER_STATUS_COMPLETED, transaction.createdAt());
+                fee, transaction.note(), TRANSFER_STATUS_COMPLETED, transaction.createdAt());
     }
 
     private static TransactionItemResponse toItem(LedgerEntryView view) {
@@ -371,7 +407,6 @@ public class DefaultTransactionService implements TransactionService {
                 e.createdAt());
     }
 
-    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public TransactionPageResponse getTransactions(
@@ -401,7 +436,6 @@ public class DefaultTransactionService implements TransactionService {
         return new TransactionPageResponse(items, page, pageSize, totalItems, totalPages);
     }
 
-    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public TransactionDetailResponse getTransactionDetails(UUID transactionId) {
@@ -411,6 +445,6 @@ public class DefaultTransactionService implements TransactionService {
                 .map(DefaultTransactionService::toItem)
                 .toList();
         return new TransactionDetailResponse(transaction.id(), transaction.type(), transaction.amount(),
-                transaction.gatewayRef(), transaction.paymentMethod(), transaction.createdAt(), entries);
+                transaction.gatewayRef(), transaction.paymentMethod(), transaction.note(), transaction.createdAt(), entries);
     }
 }

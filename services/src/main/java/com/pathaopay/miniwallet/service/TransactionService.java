@@ -1,8 +1,9 @@
 package com.pathaopay.miniwallet.service;
 
-import com.pathaopay.miniwallet.dto.*;
+import com.pathaopay.miniwallet.dto.request.*;
+import com.pathaopay.miniwallet.dto.response.*;
 
-import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.enums.EntryType;
 
 import java.time.Instant;
 import java.util.UUID;

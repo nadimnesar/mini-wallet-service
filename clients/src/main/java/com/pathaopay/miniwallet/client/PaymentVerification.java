@@ -1,6 +1,6 @@
 package com.pathaopay.miniwallet.client;
 
-import com.pathaopay.miniwallet.model.PaymentMethod;
+import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 
 import java.util.UUID;
 

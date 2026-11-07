@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.model;
+package com.pathaopay.miniwallet.model.enums;
 
 /** The business meaning of one ledger leg, and the side ({@link EntryDirection}) it always posts on. */
 public enum EntryType {

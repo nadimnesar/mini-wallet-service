@@ -5,10 +5,10 @@ Guidance for Claude Code when working in this repository.
 ## Project at a glance
 
 - Maven multi-module Spring Boot 4 / Java 25 service: `common`, `models`, `repository`, `clients`, `services`, `middleware` (the only runnable module).
-- `docker compose up` (add `--build` after code changes) runs the whole stack: the PostgreSQL primary (write, `:5432`), the streaming read replica (`:5433`), and the app (`:8080`).
-- Module roles: `clients` holds every external-system client: the database (`DataSourceConfig`, Liquibase changelogs) and the payment gateway. `repository` holds all repositories: interfaces plus `jdbc/` implementations.
+- `docker compose up` (add `--build` after code changes) runs the whole stack: a single PostgreSQL instance (`:5432`), and the app (`:8080`).
+- Module roles: `clients` holds every external-system client: the database (Liquibase changelogs) and the payment gateway. `repository` holds all repositories: interfaces plus `jdbc/` implementations.
 - `common` layout: `constant/`: `AppConstants` (headers, money, phone, validation), `ErrorConstants` (nested `ErrorCode` and `ErrorMessage`), `PaymentGatewayConstants`, and `DbConstants` (datasource settings plus one nested class per table with `TABLE` and every column name). All SQL in repositories and tests builds table/column names from `DbConstants`; add new tables/columns there when the schema changes. No constants in controllers. `util/` (PhoneNumberUtils, UuidGenerator), `exception/` with the base `MiniWalletException` and one subpackage per domain (`wallet`, `payment`, `transaction`, `idempotency`). Put new exceptions in the matching subpackage.
-- Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
+- One PostgreSQL instance and one Spring Boot `DataSource` (`spring.datasource.*`); there is no read/write routing or replica.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 - Lombok (declared once in the root pom): `@RequiredArgsConstructor` for constructor injection, `@Slf4j` for loggers, `@Getter` for plain getters, `@NoArgsConstructor(access = AccessLevel.PRIVATE)` for constant/utility classes. Use records (not `@Data`/`@Value`) for DTOs and models. Keep a hand-written constructor only when it does more than assign fields.
 
@@ -21,8 +21,8 @@ Guidance for Claude Code when working in this repository.
 
 - `wallets` has **no balance column**. A wallet's balance is the `balance_after` of its latest `ledger_entries` entry (by `entry_no`), or 0 if it has none. Never add a mutable balance column.
 - **The phone number is the external identity of a wallet.** Every endpoint, request/response field and error message identifies wallets by phone (normalize with `PhoneNumberUtils.normalize`; resolve with `WalletRepository.findByPhone`). `wallet_id` appears in responses next to the phone but is never accepted in requests; `LedgerEntryView` supplies the phones. Wallet details and balance are two endpoints (`GET /wallets/{phone}` and `.../balance`): `Wallet` has no balance and no `updated_at` (nothing ever changes a wallet row); `WalletBalance` comes from the latest ledger entry and its `updated_at` is that entry's time.
-- The ledger is double-entry. `wallets.type` is an account class: `ASSET`, `EXPENSE`, `REVENUE`, `EQUITY`, `LIABILITY` (`WalletType`; ASSET/EXPENSE are debit-normal, the rest credit-normal, see `WalletType.apply`). Customer wallets are `LIABILITY`; Liquibase seeds one system account per other class (`REVENUE_WALLET_ID`, `GATEWAY_CLEARING_WALLET_ID`, `OPERATING_EXPENSE_WALLET_ID`, `OWNER_EQUITY_WALLET_ID` in `AppConstants`), all owned by `SYSTEM_USER_ID` and each with a reserved `010…` phone (`*_WALLET_PHONE`), all at balance 0 (no seeded transactions). Every wallet has a mandatory, unique phone; customer (`LIABILITY`) wallets can never use `SYSTEM_USER_ID` (a DB check). `user_id` is unique among customer wallets only. Services reject system accounts as customer wallets with `SystemWalletException`.
-- Two append-only tables (changelogs `002-create-transactions-table.sql`, `003-create-ledger-entries-table.sql`): `transactions` has one row per business operation (`TransactionType`: `ADD_MONEY`, `TRANSFER`; amount; `gateway_ref` + `payment_method` for add-money, `gateway_ref` unique), and `ledger_entries` holds its debit/credit legs. Always insert the `transactions` row first, then its entries, in one database transaction.
+- The ledger is double-entry. `wallets.type` is an account class: `ASSET`, `EXPENSE`, `REVENUE`, `EQUITY`, `LIABILITY` (`WalletType`; ASSET/EXPENSE are debit-normal, the rest credit-normal, see `WalletType.apply`). Customer wallets are `LIABILITY`; Liquibase seeds one system account per other class (`REVENUE_WALLET_ID`, `GATEWAY_CLEARING_WALLET_ID`, `OPERATING_EXPENSE_WALLET_ID`, `OWNER_EQUITY_WALLET_ID` in `AppConstants`), all owned by `SYSTEM_USER_ID` and each with a reserved `010…` phone (`*_WALLET_PHONE`; customer wallets must use an assigned prefix `013`–`019`, checked by `PhoneNumberUtils.normalizeCustomer` and a DB constraint), all at balance 0 (no seeded transactions). Every wallet has a mandatory, unique phone; customer (`LIABILITY`) wallets can never use `SYSTEM_USER_ID` (a DB check). `user_id` is unique among customer wallets only. Services reject system accounts as customer wallets with `SystemWalletException`.
+- Two append-only tables (changelogs `002-create-transactions-table.sql`, `003-create-ledger-entries-table.sql`): `transactions` has one row per business operation (`TransactionType`: `ADD_MONEY`, `TRANSFER`; amount; `gateway_ref` + `payment_method` for add-money, `gateway_ref` unique; optional `note` for transfers), and `ledger_entries` holds its debit/credit legs. Always insert the `transactions` row first, then its entries, in one database transaction.
 - `ledger_entries` holds debit/credit legs, an append-only chain per wallet. Each leg carries `direction` (fixed by its `TransactionType`) and the wallet's `wallet_type`. Legs of one transaction share a `transaction_id`, and debits must equal credits. Postgres enforces it (see `003-create-ledger-entries-table.sql`):
   - a deferred constraint trigger rejects, at commit, a transaction with fewer than two entries or unbalanced entries, and triggers reject UPDATE/DELETE on both tables
   - each leg type posts on its own side and account class
@@ -31,9 +31,9 @@ Guidance for Claude Code when working in this repository.
   - entry 1 starts from 0
   - `balance_after >= 0`
   - the arithmetic matches the type and the wallet's account class
-  - amounts are 100–2,500,000 poisha
+  - amounts are positive (the min/max per transaction type live in the `limits` table and are enforced by the service)
   - a gateway_ref credits only once (unique on `transactions`)
-- To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. Add-money writes two legs (`GATEWAY_CLEARING` debit on the clearing asset + `ADD_MONEY` credit on the customer) under one `ADD_MONEY` transaction (its id is the response `transaction_id`). A transfer writes four legs (`TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver, `FEE_IN` on the revenue account) under one `TRANSFER` transaction (its id is the `transfer_id`); the flat fee is `AppConstants.TRANSFER_FEE_POISHA`, and the revenue and clearing accounts are locked in every transfer/add-money (a deliberate hot row). Never UPDATE or DELETE ledger rows. Tests that insert raw rows must insert the transaction and all its balanced entries in one statement (a data-modifying CTE); the test reset truncates both tables.
+- To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. Add-money writes two legs (`GATEWAY_CLEARING` debit on the clearing asset + `ADD_MONEY` credit on the customer) under one `ADD_MONEY` transaction (its id is the response `transaction_id`). A transfer writes four legs (`TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver, `FEE_IN` on the revenue account) under one `TRANSFER` transaction (its id is the `transfer_id`); the flat fee is read from the `fees` table (seeded by Liquibase changeset `005`, edit the row to change it; the single-transaction limit is read from the `limits` table, changeset `006`, and for a transfer it applies to `amount + fee`; a replay returns the fee of the original `FEE_OUT` leg), and the revenue and clearing accounts are locked in every transfer/add-money (a deliberate hot row). Never UPDATE or DELETE ledger rows. Tests that insert raw rows must insert the transaction and all its balanced entries in one statement (a data-modifying CTE); the test reset truncates both tables.
 
 ## Idempotent endpoints (add-money, transfers)
 
@@ -80,7 +80,7 @@ Only commit when the user asks. Never commit to `master` without the user's go-a
   | `chore` | tooling, repo housekeeping, compose/infra config |
   | `revert` | reverting an earlier commit |
 - **scope**: the Maven module touched (`common`, `models`, `repository`, `clients`, `services`, `middleware`), or `docker`, `readme`, `deps` or `repo`. Omit the scope only when a change truly spans everything.
-- **body**: required when the *why* isn't obvious from the summary. Mention trade-offs and caveats (e.g. replica lag).
+- **body**: required when the *why* isn't obvious from the summary. Mention trade-offs and caveats.
 - **no AI attribution**: never add `Co-Authored-By: Claude ...` (or any other AI/tool co-author) trailer, or "Generated with Claude Code" lines, to commit messages or PR descriptions. Commits are authored solely by the repository owner.
 - **breaking changes**: add `!` after the scope (`feat(clients)!: ...`) and a `BREAKING CHANGE:` footer.
 
@@ -96,7 +96,7 @@ Only commit when the user asks. Never commit to `master` without the user's go-a
 
 ```
 feat(clients): add read/write datasource routing
-chore(docker): add postgres primary and read replica
+chore(docker): add postgres service
 build(docker): containerize app and run full stack via compose
 fix(middleware): correct GlobalExceptionHandler package
 docs(readme): document database topology
