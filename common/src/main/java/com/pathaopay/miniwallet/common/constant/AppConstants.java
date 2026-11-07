@@ -14,15 +14,9 @@ public final class AppConstants {
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
     public static final long POISHA_PER_BDT = 100;
-    /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */
-    public static final UUID OPERATING_EXPENSE_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000005");
-    /** EQUITY account for the owners' capital; no flow posts to it yet. */
-    public static final UUID OWNER_EQUITY_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000006");
     /** Phone numbers of the seeded system accounts. Phones are unique, so no other wallet can take one. */
     public static final String REVENUE_WALLET_PHONE = "01000000001";
     public static final String GATEWAY_CLEARING_WALLET_PHONE = "01000000003";
-    public static final String OPERATING_EXPENSE_WALLET_PHONE = "01000000005";
-    public static final String OWNER_EQUITY_WALLET_PHONE = "01000000006";
     /** REVENUE account that collects transfer fees; seeded by Liquibase changeset 001-seed-system-wallets. */
     public static final UUID REVENUE_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000001");
     /**

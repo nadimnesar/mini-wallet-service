@@ -86,8 +86,7 @@ public abstract class AbstractIntegrationTest {
     }
 
     private static final List<UUID> SYSTEM_WALLETS = List.of(AppConstants.REVENUE_WALLET_ID,
-            AppConstants.GATEWAY_CLEARING_WALLET_ID,
-            AppConstants.OPERATING_EXPENSE_WALLET_ID, AppConstants.OWNER_EQUITY_WALLET_ID);
+            AppConstants.GATEWAY_CLEARING_WALLET_ID);
 
     @Autowired
     protected JdbcClient jdbcClient;

@@ -173,22 +173,15 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     void walletsHaveTheirAccountClass() {
         assertEquals(WalletType.REVENUE, walletService.getWallet(REVENUE).type());
         assertEquals(WalletType.ASSET, walletService.getWallet(AppConstants.GATEWAY_CLEARING_WALLET_PHONE).type());
-        assertEquals(WalletType.EXPENSE, walletService.getWallet(AppConstants.OPERATING_EXPENSE_WALLET_PHONE).type());
-        assertEquals(WalletType.EQUITY, walletService.getWallet(AppConstants.OWNER_EQUITY_WALLET_PHONE).type());
         assertEquals(WalletType.LIABILITY, walletService.getWallet(alice).type());
         // Nothing is seeded: only the clearing asset has moved, by alice's funding in setUp.
-        for (String system : List.of(REVENUE, AppConstants.OPERATING_EXPENSE_WALLET_PHONE,
-                AppConstants.OWNER_EQUITY_WALLET_PHONE)) {
-            assertEquals(0, balance(system));
-        }
+        assertEquals(0, balance(REVENUE));
         assertEquals(50000, balance(AppConstants.GATEWAY_CLEARING_WALLET_PHONE));
     }
 
     @Test
     void systemAccountsCannotSendOrReceiveTransfers() {
-        for (String system : List.of(REVENUE, AppConstants.GATEWAY_CLEARING_WALLET_PHONE,
-                AppConstants.OPERATING_EXPENSE_WALLET_PHONE,
-                AppConstants.OWNER_EQUITY_WALLET_PHONE)) {
+        for (String system : List.of(REVENUE, AppConstants.GATEWAY_CLEARING_WALLET_PHONE)) {
             assertError(transfer("from-" + system, system, bob, 10000, null), 422, "SYSTEM_WALLET_NOT_ALLOWED");
             assertError(transfer("to-" + system, alice, system, 10000, null), 422, "SYSTEM_WALLET_NOT_ALLOWED");
         }
