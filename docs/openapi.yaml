@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Mini Wallet Service
   version: 0.0.1
-  description: All amounts are integer poisha (1 BDT = 100 poisha).
+  description: All amounts are integer poisha (1 BDT = 100 poisha). The API speaks only application/json; any other Content-Type is 415 UNSUPPORTED_MEDIA_TYPE and an Accept header that excludes JSON is 406 NOT_ACCEPTABLE, both in the standard error format.
 servers:
   - url: '{baseUrl}'
     description: MiniWallet Collection Variables
@@ -221,9 +221,7 @@ components:
     Amount:
       type: integer
       format: int64
-      minimum: 100
-      maximum: 2500000
-      description: Poisha
+      description: Poisha. The minimum and the single-transaction maximum come from the limits table (default 100 and 2500000); a transfer's amount plus its fee must not exceed the maximum. Outside them the error is INVALID_AMOUNT (400).
 
     PaymentMethod:
       type: string
