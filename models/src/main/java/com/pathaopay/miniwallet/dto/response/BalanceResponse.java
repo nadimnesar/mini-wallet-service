@@ -6,6 +6,7 @@ import com.pathaopay.miniwallet.model.enums.Currency;
 import java.time.Instant;
 import java.util.UUID;
 
+/** A wallet's current balance in poisha, as returned by the balance endpoint. */
 public record BalanceResponse(
         @JsonProperty("wallet_id")
         UUID walletId,

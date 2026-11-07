@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/** JDBC access to {@code add_money_requests}, the status record and outbox of asynchronous add-money. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcAddMoneyRequestRepository implements AddMoneyRequestRepository {

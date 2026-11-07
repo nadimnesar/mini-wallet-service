@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/** Transfer endpoint under {@code /api/v1/transfers}. */
 @RestController
 @RequestMapping(path = "/api/v1/transfers")
 @Validated
@@ -21,6 +22,7 @@ public class TransferController {
 
     private final TransactionService transactionService;
 
+    /** {@code POST /api/v1/transfers}: moves money between two wallets, idempotent on {@code Idempotency-Key}; 201. */
     @PostMapping
     public ResponseEntity<TransferResponse> transfer(
             @RequestHeader(name = AppConstants.IDEMPOTENCY_KEY_HEADER) @NotBlank @Size(max = 255) String idempotencyKey,

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.OptionalLong;
 
+/** JDBC reads of the {@code fees} table. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcFeeRepository implements FeeRepository {

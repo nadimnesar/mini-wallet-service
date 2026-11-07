@@ -8,6 +8,7 @@ import com.pathaopay.miniwallet.model.enums.WalletType;
 import java.util.Optional;
 import java.util.UUID;
 
+/** Access to {@code wallets}; a wallet row never changes after insert and has no balance column. */
 public interface WalletRepository {
 
     /**
@@ -19,8 +20,10 @@ public interface WalletRepository {
      */
     Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency, WalletType type);
 
+    /** Whether a wallet with this canonical phone exists. */
     boolean existsByPhone(String phone);
 
+    /** The wallet with this internal id, or empty. */
     Optional<Wallet> findById(UUID walletId);
 
     /** Looks a wallet up by its canonical phone number (01XXXXXXXXX), the external identity. */

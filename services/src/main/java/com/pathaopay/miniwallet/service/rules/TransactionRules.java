@@ -25,7 +25,7 @@ public class TransactionRules {
     private final WalletRepository walletRepository;
     private final LimitRepository limitRepository;
 
-    /** Checks {@code amount} against the limits table: at least the minimum and at most the single-transaction maximum. */
+    /** Checks {@code amount} against the limits table: at least the minimum, at most the single-transaction maximum. */
     public void requireWithinLimit(TransactionType type, long amount) {
         TransactionLimit limit = limitRepository.find(type)
                 .orElseThrow(() -> new IllegalStateException("No limit configured in the limits table for " + type));
@@ -48,6 +48,7 @@ public class TransactionRules {
         return wallet;
     }
 
+    /** The exception for a gateway_ref that was already credited or is already in an open request. */
     public static DuplicateGatewayRefException duplicateGatewayRef(UUID gatewayRef) {
         return new DuplicateGatewayRefException(ErrorMessage.DUPLICATE_GATEWAY_REF_PREFIX + gatewayRef);
     }

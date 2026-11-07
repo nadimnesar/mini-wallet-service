@@ -32,6 +32,7 @@ public record TransactionHistoryParams(
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_PAGE_SIZE = 20;
 
+    /** Applies the defaults: page 1 and page size 20 when absent. */
     public TransactionHistoryParams {
         page = page == null ? DEFAULT_PAGE : page;
         pageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;

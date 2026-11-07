@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/** JDBC access to the append-only {@code transactions} and {@code ledger_entries} tables. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcTransactionRepository implements TransactionRepository {

@@ -19,6 +19,7 @@ public enum WalletType {
         this.normalSide = normalSide;
     }
 
+    /** The side on which a posting raises the balance. */
     public EntryDirection normalSide() {
         return normalSide;
     }

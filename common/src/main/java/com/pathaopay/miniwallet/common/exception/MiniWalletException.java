@@ -2,6 +2,10 @@ package com.pathaopay.miniwallet.common.exception;
 
 import lombok.Getter;
 
+/**
+ * Base of all business exceptions: carries the machine-readable {@code errorCode} that
+ * {@code GlobalExceptionHandler} maps to an HTTP status.
+ */
 @Getter
 public abstract class MiniWalletException extends RuntimeException {
 

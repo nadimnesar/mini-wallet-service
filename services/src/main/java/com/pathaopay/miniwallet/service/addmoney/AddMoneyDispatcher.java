@@ -17,8 +17,8 @@ import java.util.UUID;
  * Outbox relay: hands accepted add-money requests to the broker. A request is stored in the database in the same
  * transaction that accepts it, so a crash can never leave an accepted request without a message to come: this loop
  * publishes every PENDING request that was never published (and, as a safety net, republishes one whose message got
- * lost, which also covers a crash right after a batch was claimed). Publishing twice is harmless: processing skips a request that is no longer PENDING and the gateway_ref
- * credits only once.
+ * lost, which also covers a crash right after a batch was claimed). Publishing twice is harmless: processing skips a
+ * request that is no longer PENDING and the gateway_ref credits only once.
  */
 @Component
 @Slf4j
@@ -30,6 +30,7 @@ public class AddMoneyDispatcher {
     private final AddMoneyMessagingProperties properties;
     private final TransactionTemplate transactionTemplate;
 
+    /** Scheduled entry point: runs one {@link #dispatch()} and only logs a failure, the next tick tries again. */
     @Scheduled(fixedDelayString = "${miniwallet.messaging.add-money.dispatch-interval-ms:500}")
     public void dispatchScheduled() {
         try {

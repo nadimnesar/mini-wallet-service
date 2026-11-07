@@ -59,10 +59,15 @@ public class LedgerPoster {
             this.balance = balance;
         }
 
+        /** The wallet's balance as of the legs appended so far. */
         public long balance() {
             return balance;
         }
 
+        /**
+         * Appends the next entry of this wallet (entry_no + 1) for a leg of the given type. The direction comes from
+         * the leg type and the new balance from the wallet's account class.
+         */
         public LedgerEntry append(EntryType legType, long amount, UUID counterparty, UUID transactionId) {
             LedgerEntry stored = repository.appendEntry(new LedgerEntry(UuidGenerator.v7(), walletId, type,
                     entryNo + 1, legType, legType.direction(), amount, balance,

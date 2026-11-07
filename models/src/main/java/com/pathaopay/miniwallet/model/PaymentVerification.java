@@ -17,6 +17,7 @@ public record PaymentVerification(
         String declineReason,
         String merchantReference
 ) {
+    /** Gateway verdict: money taken, refused (see {@code declineReason}), or not settled yet (retryable). */
     public enum Status {
         CAPTURED,
         DECLINED,

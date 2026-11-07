@@ -27,6 +27,7 @@ import java.util.List;
 @EnableConfigurationProperties(AddMoneyMessagingProperties.class)
 public class RabbitMqConfig {
 
+    /** Declares the work queue, the DLQ and one TTL retry queue per configured retry delay. */
     @Bean
     Declarables addMoneyQueues(AddMoneyMessagingProperties properties) {
         List<Declarable> queues = new ArrayList<>();
@@ -41,6 +42,7 @@ public class RabbitMqConfig {
         return new Declarables(queues);
     }
 
+    /** Retry queue number {@code retry}: messages wait {@code delayMillis}, then dead-letter to the work queue. */
     private static Queue retryQueue(int retry, long delayMillis) {
         return QueueBuilder.durable(MessagingConstants.ADD_MONEY_RETRY_QUEUE.formatted(retry))
                 .ttl((int) delayMillis)

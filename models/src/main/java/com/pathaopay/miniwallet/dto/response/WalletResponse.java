@@ -6,6 +6,7 @@ import com.pathaopay.miniwallet.model.enums.WalletType;
 import java.time.Instant;
 import java.util.UUID;
 
+/** Wallet details; the balance is a separate endpoint. */
 public record WalletResponse(
         @JsonProperty("wallet_id")
         UUID walletId,

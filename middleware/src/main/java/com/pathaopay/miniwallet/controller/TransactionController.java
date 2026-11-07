@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/** Transaction lookup endpoints under {@code /api/v1/transactions}. */
 @RestController
 @RequestMapping(path = "/api/v1/transactions")
 @Validated
@@ -20,6 +21,7 @@ public class TransactionController {
 
     private final TransactionService transactionService;
 
+    /** {@code GET /api/v1/transactions/{transactionId}}: returns one transaction with its ledger legs. */
     @GetMapping(path = "/{transactionId}")
     public ResponseEntity<TransactionDetailResponse> getTransactionDetails(
             @PathVariable("transactionId") UUID transactionId) {

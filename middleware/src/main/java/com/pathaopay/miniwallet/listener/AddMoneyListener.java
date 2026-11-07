@@ -23,6 +23,7 @@ public class AddMoneyListener {
 
     private final TransactionService transactionService;
 
+    /** Handles one add-money message by processing the request with that id. */
     @RabbitListener(queues = MessagingConstants.ADD_MONEY_QUEUE)
     public void onMessage(String requestId) {
         log.debug("Received add-money message: requestId={}", requestId);

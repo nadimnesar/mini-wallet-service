@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/** Wallet creation and lookup; a wallet's balance is read from the ledger, never stored on the wallet. */
 @Service
 @Slf4j
 @RequiredArgsConstructor

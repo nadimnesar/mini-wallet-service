@@ -16,9 +16,11 @@ public record PaymentGatewayProperties(
         Network visa,
         Network mastercard
 ) {
+    /** Credentials for one card network. */
     public record Network(String apiKey) {
     }
 
+    /** Returns the credentials of the given payment method's network. */
     public Network network(PaymentMethod method) {
         return switch (method) {
             case VISA -> visa;

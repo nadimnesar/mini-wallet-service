@@ -34,6 +34,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     private final RestClient restClient;
     private final PaymentGatewayProperties properties;
 
+    /** Builds an HTTP/1.1 REST client with the configured connect and read timeouts. */
     public HttpPaymentGatewayClient(PaymentGatewayProperties properties) {
         this.properties = properties;
         // HTTP/1.1: the JDK client otherwise attempts an h2c upgrade, which gateways (and WireMock's
@@ -84,6 +85,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
                 response.merchantReference());
     }
 
+    /** JSON body sent to the gateway verify endpoint. */
     private record VerifyRequest(
             @JsonProperty("gateway_ref") UUID gatewayRef,
             @JsonProperty("merchant_reference") String merchantReference,
@@ -91,6 +93,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
             @JsonProperty("currency") String currency) {
     }
 
+    /** JSON body the gateway answers with; {@code status} and {@code amount} are required. */
     private record VerifyResponse(
             @JsonProperty("gateway_ref") UUID gatewayRef,
             @JsonProperty("status") PaymentVerification.Status status,

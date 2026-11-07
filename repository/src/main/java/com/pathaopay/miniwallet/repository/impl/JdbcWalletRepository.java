@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+/** JDBC access to {@code wallets}; balances are derived from the latest ledger entry. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcWalletRepository implements WalletRepository {

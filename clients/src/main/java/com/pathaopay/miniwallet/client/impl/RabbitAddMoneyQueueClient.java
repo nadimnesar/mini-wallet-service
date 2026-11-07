@@ -49,6 +49,7 @@ public class RabbitAddMoneyQueueClient implements AddMoneyQueueClient {
         log.warn("Add-money request dead-lettered: requestId={} reason={}", requestId, reason);
     }
 
+    /** Publishes the request id to {@code queue} and blocks until the broker confirms it. */
     private void send(String queue, UUID requestId, MessagePostProcessor postProcessor) {
         rabbitTemplate.invoke(operations -> {
             operations.convertAndSend(MessagingConstants.DEFAULT_EXCHANGE, queue, requestId.toString(), postProcessor);

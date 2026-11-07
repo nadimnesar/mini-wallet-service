@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/** JDBC reads of the {@code limits} table. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcLimitRepository implements LimitRepository {

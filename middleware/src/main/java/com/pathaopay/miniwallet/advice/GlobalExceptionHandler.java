@@ -30,10 +30,12 @@ import tools.jackson.databind.exc.MismatchedInputException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/** Turns every exception into an {@code ErrorResponse} with the matching HTTP status. */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
+    /** HTTP status per domain error code; add new codes here. */
     private static final Map<String, HttpStatus> STATUS_BY_ERROR_CODE = Map.ofEntries(
             Map.entry(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST),
@@ -54,6 +56,10 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.PAYMENT_GATEWAY_ERROR, HttpStatus.BAD_GATEWAY),
             Map.entry(ErrorCode.SERVICE_BUSY, HttpStatus.SERVICE_UNAVAILABLE));
 
+    /**
+     * Validation failures are {@code VALIDATION_ERROR}; a parameter that cannot be converted is
+     * {@code INVALID_ARGUMENT}.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         // A query parameter that cannot be converted (bad enum or date) is a bad argument, not a failed constraint.
@@ -174,6 +180,7 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(ErrorCode.SERVICE_BUSY, ErrorMessage.SERVICE_BUSY));
     }
 
+    /** Fallback: logs the error and answers 500 without exposing details. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error(ErrorMessage.UNHANDLED_EXCEPTION_LOG, ex);

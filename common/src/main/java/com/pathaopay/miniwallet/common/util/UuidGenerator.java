@@ -17,6 +17,7 @@ public final class UuidGenerator {
     /** Thread-safe; monotonic within the same millisecond. */
     private static final TimeBasedEpochGenerator V7 = Generators.timeBasedEpochGenerator();
 
+    /** Returns a new UUIDv7. */
     public static UUID v7() {
         return V7.generate();
     }

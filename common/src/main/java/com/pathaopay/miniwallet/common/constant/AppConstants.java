@@ -10,6 +10,7 @@ import java.util.UUID;
 public final class AppConstants {
 
     // ---- HTTP headers
+    /** Request header that carries the client-chosen idempotency key. */
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     // ---- Money: all amounts are integer poisha (1 BDT = 100 poisha)
@@ -36,6 +37,7 @@ public final class AppConstants {
     public static final String PHONE_ACCEPTED_PATTERN = "^(?:\\+?880|0)?(1\\d{9})$";
 
     // ---- Request validation limits, patterns and messages
+    /** Maximum length of a transfer note. */
     public static final int NOTE_MAX_LENGTH = 255;
 
     public static final String USER_ID_REQUIRED = "user_id is required";

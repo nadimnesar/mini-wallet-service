@@ -24,6 +24,7 @@ public record AddMoneyMessagingProperties(
         Duration republishAfter,
         Duration confirmTimeout
 ) {
+    /** Replaces missing or invalid values with defaults. */
     public AddMoneyMessagingProperties {
         retryDelays = retryDelays == null || retryDelays.isEmpty()
                 ? List.of(Duration.ofSeconds(5), Duration.ofSeconds(30), Duration.ofMinutes(2),
@@ -34,6 +35,7 @@ public record AddMoneyMessagingProperties(
         confirmTimeout = confirmTimeout == null ? Duration.ofSeconds(5) : confirmTimeout;
     }
 
+    /** Total attempts allowed for a request: the first try plus one per retry delay. */
     public int maxAttempts() {
         return retryDelays.size() + 1;
     }

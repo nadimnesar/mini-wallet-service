@@ -20,6 +20,7 @@ public interface TransactionRepository {
     /** The wallet's newest entry (highest entry_no), or empty for a wallet without entries. */
     Optional<LedgerEntry> findLatestEntry(UUID walletId);
 
+    /** Whether a transaction with this gateway_ref already exists. */
     boolean existsByGatewayRef(UUID gatewayRef);
 
     /**
@@ -29,11 +30,13 @@ public interface TransactionRepository {
      */
     Optional<LedgerTransaction> insertAddMoney(LedgerTransaction transaction);
 
+    /** Inserts a transaction row (e.g. a transfer); insert it before its entries. */
     LedgerTransaction insert(LedgerTransaction transaction);
 
     /** Appends one leg. The caller must hold the wallet's row lock and have inserted the transaction. */
     LedgerEntry appendEntry(LedgerEntry entry);
 
+    /** The transaction row, or empty if the id is unknown. */
     Optional<LedgerTransaction> findTransaction(UUID transactionId);
 
     /** All entries of a transaction, in the order they were written, with their wallets' phone numbers. */
@@ -45,5 +48,6 @@ public interface TransactionRepository {
     /** Entries matching the filter, newest first, with their wallets' phone numbers. */
     List<LedgerEntryView> search(TransactionFilter filter, int limit, long offset);
 
+    /** Number of entries matching the filter (for paging). */
     long count(TransactionFilter filter);
 }

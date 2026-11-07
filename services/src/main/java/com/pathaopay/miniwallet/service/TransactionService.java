@@ -11,6 +11,7 @@ import com.pathaopay.miniwallet.model.enums.EntryType;
 import java.time.Instant;
 import java.util.UUID;
 
+/** Money operations: add-money, transfers and transaction history. */
 public interface TransactionService {
     /**
      * Validates and accepts an add-money request; the card gateway is checked and the wallet credited later by
@@ -18,6 +19,7 @@ public interface TransactionService {
      */
     AddMoneyStatusResponse addMoney(AddMoneyRequest request, String idempotencyKey);
 
+    /** Current status of an add-money request. */
     AddMoneyStatusResponse getAddMoneyRequest(UUID requestId);
 
     /**
@@ -27,8 +29,10 @@ public interface TransactionService {
      */
     void processAddMoney(UUID requestId);
 
+    /** Transfers money between two customer wallets, charging the flat fee to the sender; idempotent per key. */
     TransferResponse transfer(TransferRequest request, String idempotencyKey);
 
+    /** One page of a wallet's ledger entries, optionally filtered by entry type and time range. */
     TransactionPageResponse getTransactions(
             String phone,
             EntryType type,
@@ -38,5 +42,6 @@ public interface TransactionService {
             int pageSize
     );
 
+    /** A transaction with all of its ledger legs. */
     TransactionDetailResponse getTransactionDetails(UUID transactionId);
 }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 import java.util.UUID;
 
+/** JDBC storage of idempotency keys; a claim is an insert that does nothing on a key conflict. */
 @Repository
 @RequiredArgsConstructor
 public class JdbcIdempotencyRepository implements IdempotencyRepository {

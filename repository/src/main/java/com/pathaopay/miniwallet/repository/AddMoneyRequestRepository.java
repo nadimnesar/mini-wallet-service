@@ -20,13 +20,16 @@ public interface AddMoneyRequestRepository {
      */
     Optional<AddMoneyRequestRecord> insert(AddMoneyRequestRecord request);
 
+    /** The request with this id, or empty. */
     Optional<AddMoneyRequestRecord> findById(UUID id);
 
     /** Like {@link #findById} but locks the row until the transaction ends, so a request is processed by one worker at a time. */
     Optional<AddMoneyRequestRecord> lockById(UUID id);
 
+    /** Marks the request COMPLETED and links the ledger transaction that credited the wallet. */
     void markCompleted(UUID id, UUID transactionId, int attempts);
 
+    /** Marks the request FAILED with the final error; no further retries. */
     void markFailed(UUID id, int attempts, String errorCode, String errorMessage);
 
     /** Records a retryable failure and the attempt count; the request stays PENDING. */
