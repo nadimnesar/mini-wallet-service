@@ -9,7 +9,6 @@ CREATE TABLE wallets
     currency   CHAR(3)     NOT NULL DEFAULT 'BDT',
     type       VARCHAR(16) NOT NULL DEFAULT 'LIABILITY',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT pk_wallets PRIMARY KEY (wallet_id),
     CONSTRAINT uq_wallets_id_type UNIQUE (wallet_id, type),
     CONSTRAINT uq_wallets_phone UNIQUE (phone),
