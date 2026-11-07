@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Message broker for asynchronous add-money. Management UI: http://localhost:15672 (miniwallet / miniwallet).
+  # Management UI: http://localhost:15672 (miniwallet / miniwallet).
   rabbitmq:
     image: rabbitmq:4-management-alpine
     container_name: miniwallet-rabbitmq
@@ -36,7 +36,7 @@ services:
       timeout: 10s
       retries: 10
 
-  # Mock payment gateway for Visa and Mastercard (WireMock). Stubs: docker/wiremock.
+  # Mock payment gateway for Visa and Mastercard (WireMock). Stubs: wiremock.
   payment-gateway:
     image: wiremock/wiremock:3.13.2
     container_name: miniwallet-payment-gateway
@@ -44,7 +44,7 @@ services:
     ports:
       - "8089:8080"
     volumes:
-      - ./docker/wiremock:/home/wiremock:ro
+      - ./wiremock:/home/wiremock:ro
 
   # Spring Boot application: talks to PostgreSQL, RabbitMQ and the payment gateway.
   app:

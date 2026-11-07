@@ -40,7 +40,7 @@ import static org.awaitility.Awaitility.await;
  *   <li>PostgreSQL;</li>
  *   <li>RabbitMQ, with short retry delays (300 ms) so the retry tests are quick;</li>
  *   <li>the WireMock payment gateway, loaded with the same stubs as docker compose
- *   ({@code docker/wiremock}).</li>
+ *   ({@code wiremock}).</li>
  * </ul>
  * Containers are shared by all test classes (singleton pattern) so the cached Spring context keeps
  * pointing at live services. Every test starts with empty tables (except the seeded system accounts) and a fresh gateway request log.
@@ -53,7 +53,7 @@ public abstract class AbstractIntegrationTest {
     protected static final GenericContainer<?> PAYMENT_GATEWAY = new GenericContainer<>("wiremock/wiremock:3.13.2")
             .withExposedPorts(8080)
             .withCommand("--port", "8080", "--disable-banner")
-            .withCopyFileToContainer(MountableFile.forHostPath(Path.of("..", "docker", "wiremock")), "/home/wiremock")
+            .withCopyFileToContainer(MountableFile.forHostPath(Path.of("..", "wiremock")), "/home/wiremock")
             .waitingFor(Wait.forHttp("/__admin/health").forStatusCode(200));
 
     private static final GenericContainer<?> RABBITMQ = new GenericContainer<>("rabbitmq:4-alpine")

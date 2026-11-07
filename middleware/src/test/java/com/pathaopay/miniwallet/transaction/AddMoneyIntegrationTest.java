@@ -823,7 +823,7 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         return UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Mock-gateway scenario prefixes (see docker/wiremock): the first UUID group picks the outcome. */
+    /** Mock-gateway scenario prefixes (see wiremock): the first UUID group picks the outcome. */
     private static final Map<String, String> SCENARIO_PREFIXES = Map.of(
             "DECLINED", "00000402", "PENDING", "00000202", "NOTFOUND", "00000404",
             "MISMATCH", "00000422", "OTHERWALLET", "00000423", "ERROR", "00000500", "FLAKY", "00000503", "SLOW3DS", "00000203",

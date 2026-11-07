@@ -25,7 +25,7 @@ import java.util.UUID;
 /**
  * Calls the card network's gateway over HTTP: {@code POST {base-url}/{visa|mastercard}/v1/payments/verify}
  * with that network's API key. Locally and in tests the gateway is a WireMock server
- * (stubs in {@code docker/wiremock}).
+ * (stubs in {@code wiremock}).
  */
 @Component
 @Slf4j

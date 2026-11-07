@@ -473,5 +473,5 @@ clients/      Liquibase changelogs, payment-gateway client, RabbitMQ topology
 services/     business logic (ledger, idempotency, add-money worker, rules)
 middleware/   REST controllers, exception handler, listener (runnable)
 docs/         problem-statement.md, openapi.yaml
-docker/       WireMock stubs for the payment gateway
+wiremock/     WireMock stubs for the payment gateway
 ```
