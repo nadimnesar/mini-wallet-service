@@ -66,6 +66,10 @@ public class JdbcAddMoneyRequestRepository implements AddMoneyRequestRepository 
             "UPDATE " + AddMoneyRequests.TABLE + " SET " + AddMoneyRequests.PUBLISHED_AT + " = now()"
                     + " WHERE " + AddMoneyRequests.ID + " IN (:ids)";
 
+    private static final String MARK_UNPUBLISHED =
+            "UPDATE " + AddMoneyRequests.TABLE + " SET " + AddMoneyRequests.PUBLISHED_AT + " = NULL"
+                    + " WHERE " + AddMoneyRequests.ID + " IN (:ids) AND " + AddMoneyRequests.STATUS + " = 'PENDING'";
+
     private static final RowMapper<AddMoneyRequestRecord> ROW_MAPPER = (rs, rowNum) -> new AddMoneyRequestRecord(
             rs.getObject(AddMoneyRequests.ID, UUID.class),
             rs.getObject(AddMoneyRequests.WALLET_ID, UUID.class),
@@ -133,6 +137,13 @@ public class JdbcAddMoneyRequestRepository implements AddMoneyRequestRepository 
     public void markPublished(List<UUID> ids) {
         if (!ids.isEmpty()) {
             jdbcClient.sql(MARK_PUBLISHED).param("ids", ids).update();
+        }
+    }
+
+    @Override
+    public void markUnpublished(List<UUID> ids) {
+        if (!ids.isEmpty()) {
+            jdbcClient.sql(MARK_UNPUBLISHED).param("ids", ids).update();
         }
     }
 }

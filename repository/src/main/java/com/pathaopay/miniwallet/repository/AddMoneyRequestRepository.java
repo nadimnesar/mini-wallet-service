@@ -38,5 +38,12 @@ public interface AddMoneyRequestRepository {
      */
     List<UUID> lockDispatchable(int limit, Duration republishAfter);
 
+    /**
+     * Stamps {@code published_at} on the requests. The dispatcher does this to claim a batch <em>before</em> it
+     * publishes, so no row lock is held while it waits for the broker.
+     */
     void markPublished(List<UUID> ids);
+
+    /** Clears {@code published_at} of still-PENDING requests the dispatcher could not publish, so the next run retries them. */
+    void markUnpublished(List<UUID> ids);
 }

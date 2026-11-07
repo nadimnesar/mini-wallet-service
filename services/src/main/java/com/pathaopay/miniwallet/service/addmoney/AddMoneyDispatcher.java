@@ -16,7 +16,7 @@ import java.util.UUID;
  * Outbox relay: hands accepted add-money requests to the broker. A request is stored in the database in the same
  * transaction that accepts it, so a crash can never leave an accepted request without a message to come: this loop
  * publishes every PENDING request that was never published (and, as a safety net, republishes one whose message got
- * lost). Publishing twice is harmless: processing skips a request that is no longer PENDING and the gateway_ref
+ * lost, which also covers a crash right after a batch was claimed). Publishing twice is harmless: processing skips a request that is no longer PENDING and the gateway_ref
  * credits only once.
  */
 @Component
@@ -42,21 +42,48 @@ public class AddMoneyDispatcher {
     }
 
     /**
-     * Publishes one batch. The rows stay locked (other dispatchers skip them) until every message was confirmed and
-     * marked; if the broker fails midway, nothing is marked and the whole batch is published again next time.
+     * Publishes one batch without holding a database lock or connection while the broker confirms:
+     * <ol>
+     *   <li>a short transaction locks the batch and stamps {@code published_at} (claiming it, so other dispatchers and
+     *   the next run skip it);</li>
+     *   <li>the messages are published outside any transaction;</li>
+     *   <li>if the broker fails, the requests not published are released again and the error is rethrown.</li>
+     * </ol>
+     * A crash between the claim and the publish leaves the requests claimed but unsent: the {@code republish-after}
+     * safety net sends them later. A message published although its release then fails is only a duplicate, which is
+     * harmless.
      *
      * @return how many requests were published
      */
     int dispatch() {
-        Integer published = transactionTemplate.execute(status -> {
+        List<UUID> claimed = transactionTemplate.execute(status -> {
             List<UUID> ids = addMoneyRequestRepository.lockDispatchable(
                     properties.dispatchBatchSize(), properties.republishAfter());
-            for (UUID id : ids) {
-                addMoneyQueueClient.publish(id);
-            }
             addMoneyRequestRepository.markPublished(ids);
-            return ids.size();
+            return ids;
         });
-        return published == null ? 0 : published;
+        if (claimed == null || claimed.isEmpty()) {
+            return 0;
+        }
+        int published = 0;
+        try {
+            for (UUID id : claimed) {
+                addMoneyQueueClient.publish(id);
+                published++;
+            }
+        } catch (RuntimeException e) {
+            release(claimed.subList(published, claimed.size()));
+            throw e;
+        }
+        return published;
+    }
+
+    private void release(List<UUID> unpublished) {
+        try {
+            addMoneyRequestRepository.markUnpublished(unpublished);
+        } catch (RuntimeException e) {
+            log.warn("Could not release {} unpublished add-money request(s), the republish safety net will send them: {}",
+                    unpublished.size(), e.toString());
+        }
     }
 }
