@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,7 +59,8 @@ public class AddMoneyDispatcher {
     int dispatch() {
         List<UUID> claimed = transactionTemplate.execute(status -> {
             List<UUID> ids = addMoneyRequestRepository.lockDispatchable(
-                    properties.dispatchBatchSize(), properties.republishAfter());
+                    properties.dispatchBatchSize(), properties.republishAfter(),
+                    properties.republishAfter().plus(Collections.max(properties.retryDelays())));
             addMoneyRequestRepository.markPublished(ids);
             return ids;
         });

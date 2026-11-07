@@ -13,7 +13,8 @@ import java.util.List;
  *                         tried {@code retryDelays.size() + 1} times in all
  * @param dispatchBatchSize how many requests the dispatcher publishes per run
  * @param republishAfter   a PENDING request whose message was published longer ago than this is published again
- *                         (safety net for a lost message); keep it above the longest retry delay
+ *                         (safety net for a lost message); a request waiting on a retry queue is only published again
+ *                         after this plus the longest retry delay
  * @param confirmTimeout   how long to wait for the broker to confirm a published message
  */
 @ConfigurationProperties(MessagingConstants.PROPERTIES_PREFIX)

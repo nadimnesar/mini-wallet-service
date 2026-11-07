@@ -17,6 +17,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import com.pathaopay.miniwallet.repository.AddMoneyRequestRepository;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -52,6 +54,12 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
+
+    @Autowired
+    private AddMoneyRequestRepository addMoneyRequestRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private RestClient api;
     private String phone;
@@ -351,6 +359,34 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     @Test
     void unknownPaymentIsRejected() {
         assertFailed(addMoneyAndAwait(phone, "key-1", 50000, ref("GW-NOTFOUND-1"), "VISA"), "PAYMENT_NOT_FOUND");
+    }
+
+    @Test
+    void aRequestWaitingOnARetryQueueIsRepublishedOnlyAfterTheLongestDelayToo() {
+        // Uncommitted rows, so the running dispatcher cannot see them.
+        Set<UUID> due = transactionTemplate.execute(status -> {
+            UUID neverAttempted = pendingRow(0, "20 minutes", "20 minutes");
+            UUID parkedRecently = pendingRow(2, "20 minutes", "5 minutes");
+            UUID parkedLongAgo = pendingRow(2, "20 minutes", "60 minutes");
+            UUID publishedRecently = pendingRow(0, "1 minute", "1 minute");
+            Set<UUID> found = Set.copyOf(addMoneyRequestRepository.lockDispatchable(
+                    50, Duration.ofMinutes(10), Duration.ofMinutes(40)));
+            status.setRollbackOnly();
+            assertEquals(Set.of(neverAttempted, parkedLongAgo), found);
+            assertTrue(!found.contains(parkedRecently) && !found.contains(publishedRecently));
+            return found;
+        });
+        assertEquals(2, due.size());
+    }
+
+    private UUID pendingRow(int attempts, String publishedAgo, String updatedAgo) {
+        UUID id = UUID.randomUUID();
+        jdbcClient.sql("INSERT INTO add_money_requests (id, wallet_id, amount, gateway_ref, payment_method, attempts,"
+                        + " published_at, updated_at) VALUES (:id, :wallet, 100, :ref, 'VISA', :attempts,"
+                        + " now() - :published::interval, now() - :updated::interval)")
+                .param("id", id).param("wallet", walletId).param("ref", UUID.randomUUID(), java.sql.Types.OTHER)
+                .param("attempts", attempts).param("published", publishedAgo).param("updated", updatedAgo).update();
+        return id;
     }
 
     @Test

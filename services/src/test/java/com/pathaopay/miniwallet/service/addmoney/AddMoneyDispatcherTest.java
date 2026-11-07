@@ -37,7 +37,7 @@ class AddMoneyDispatcherTest {
     void setUp() {
         dispatcher = new AddMoneyDispatcher(repository, queue, new AddMoneyMessagingProperties(null, 0, null, null),
                 new TransactionTemplate(transactionManager));
-        when(repository.lockDispatchable(anyInt(), any())).thenReturn(List.of(first, second, third));
+        when(repository.lockDispatchable(anyInt(), any(), any())).thenReturn(List.of(first, second, third));
     }
 
     @Test
@@ -76,7 +76,7 @@ class AddMoneyDispatcherTest {
 
     @Test
     void doesNothingWhenNothingIsDue() {
-        when(repository.lockDispatchable(anyInt(), any())).thenReturn(List.of());
+        when(repository.lockDispatchable(anyInt(), any(), any())).thenReturn(List.of());
 
         assertEquals(0, dispatcher.dispatch());
 

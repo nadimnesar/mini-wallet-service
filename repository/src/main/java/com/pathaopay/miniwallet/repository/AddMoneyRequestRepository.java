@@ -34,9 +34,11 @@ public interface AddMoneyRequestRepository {
 
     /**
      * Locks up to {@code limit} PENDING requests that were never published, or last published more than
-     * {@code republishAfter} ago (a lost message), skipping rows other dispatchers hold.
+     * {@code republishAfter} ago (a lost message), skipping rows other dispatchers hold. A request that was already
+     * attempted is waiting on a retry queue, so it only counts as lost when its last attempt is older than
+     * {@code parkedAfter} too.
      */
-    List<UUID> lockDispatchable(int limit, Duration republishAfter);
+    List<UUID> lockDispatchable(int limit, Duration republishAfter, Duration parkedAfter);
 
     /**
      * Stamps {@code published_at} on the requests. The dispatcher does this to claim a batch <em>before</em> it

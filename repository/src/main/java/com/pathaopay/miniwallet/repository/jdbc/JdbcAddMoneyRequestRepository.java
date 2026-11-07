@@ -59,7 +59,9 @@ public class JdbcAddMoneyRequestRepository implements AddMoneyRequestRepository 
     private static final String LOCK_DISPATCHABLE =
             "SELECT " + AddMoneyRequests.ID + " FROM " + AddMoneyRequests.TABLE
                     + " WHERE " + AddMoneyRequests.STATUS + " = 'PENDING' AND (" + AddMoneyRequests.PUBLISHED_AT
-                    + " IS NULL OR " + AddMoneyRequests.PUBLISHED_AT + " < now() - make_interval(secs => :republishSeconds))"
+                    + " IS NULL OR (" + AddMoneyRequests.PUBLISHED_AT
+                    + " < now() - make_interval(secs => :republishSeconds) AND (" + AddMoneyRequests.ATTEMPTS
+                    + " = 0 OR " + AddMoneyRequests.UPDATED_AT + " < now() - make_interval(secs => :parkedSeconds))))"
                     + " ORDER BY " + AddMoneyRequests.CREATED_AT + " LIMIT :limit FOR UPDATE SKIP LOCKED";
 
     private static final String MARK_PUBLISHED =
@@ -126,10 +128,11 @@ public class JdbcAddMoneyRequestRepository implements AddMoneyRequestRepository 
     }
 
     @Override
-    public List<UUID> lockDispatchable(int limit, Duration republishAfter) {
+    public List<UUID> lockDispatchable(int limit, Duration republishAfter, Duration parkedAfter) {
         return jdbcClient.sql(LOCK_DISPATCHABLE)
                 .param("limit", limit)
                 .param("republishSeconds", republishAfter.toMillis() / 1000.0)
+                .param("parkedSeconds", parkedAfter.toMillis() / 1000.0)
                 .query(UUID.class).list();
     }
 
