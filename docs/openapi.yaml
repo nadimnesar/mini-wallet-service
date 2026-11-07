@@ -75,7 +75,12 @@ paths:
 
   /api/v1/wallets/add-money:
     post:
-      summary: Add money from a card payment captured by the gateway
+      summary: Request to add money from a card payment (asynchronous)
+      description: >-
+        Validates the request and queues it; the card gateway is checked and the wallet credited afterwards by a worker.
+        Poll the Location URL for the outcome. A gateway outage or timeout is retried with backoff (default: after 5 s,
+        30 s and 2 min, so up to 4 attempts) before the request fails. Everything that needs no gateway (amount limits,
+        wallet, unused gateway_ref) is still rejected immediately with the errors below.
       operationId: addMoney
       tags: [Wallets]
       parameters:
@@ -86,30 +91,47 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/AddMoneyRequest' }
       responses:
-        '201':
-          description: Money added (also returned on an idempotent replay)
+        '202':
+          description: Request accepted, status PENDING (an idempotent replay returns the same request with its current status)
+          headers:
+            Location:
+              description: URL of the request's status
+              schema: { type: string, example: '/api/v1/wallets/add-money/0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b' }
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AddMoneyResponse' }
+              schema: { $ref: '#/components/schemas/AddMoneyStatusResponse' }
         '400': { $ref: '#/components/responses/Error' }
-        '402':
-          description: PAYMENT_DECLINED
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404': { $ref: '#/components/responses/Error' }
         '409':
-          description: DUPLICATE_GATEWAY_REF
+          description: DUPLICATE_GATEWAY_REF (already credited, or already queued by another request)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '422':
-          description: PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED (wallet is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
+          description: SYSTEM_WALLET_NOT_ALLOWED (wallet is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '502':
-          description: PAYMENT_GATEWAY_ERROR (retryable with the same key)
+
+  /api/v1/wallets/add-money/{request_id}:
+    get:
+      summary: Status of an add-money request
+      operationId: getAddMoneyRequest
+      tags: [Wallets]
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The request and its current status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddMoneyStatusResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404':
+          description: ADD_MONEY_REQUEST_NOT_FOUND
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -282,17 +304,31 @@ components:
           description: Payment reference from the card gateway; credits only once. The mock gateway picks the outcome from a reserved prefix (see README); this example is captured
         payment_method: { $ref: '#/components/schemas/PaymentMethod' }
 
-    AddMoneyResponse:
+    AddMoneyStatusResponse:
       type: object
       properties:
-        transaction_id: { type: string, format: uuid }
+        request_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED]
+          description: PENDING until the worker finishes (including while it waits for a retry); COMPLETED and FAILED are final
         wallet_id: { type: string, format: uuid }
         phone: { type: string, example: '01712345678' }
-        added_amount: { type: integer, format: int64 }
-        balance: { type: integer, format: int64 }
+        amount: { type: integer, format: int64 }
         gateway_ref: { type: string, format: uuid }
         payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+        attempts: { type: integer, description: Processing attempts made so far }
+        transaction_id: { type: [string, 'null'], format: uuid, description: Set once COMPLETED }
+        balance: { type: [integer, 'null'], format: int64, description: Wallet balance right after the credit; set once COMPLETED }
+        error_code:
+          type: [string, 'null']
+          description: >-
+            Set once FAILED: PAYMENT_DECLINED, PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED, DUPLICATE_GATEWAY_REF
+            or INVALID_AMOUNT, or PAYMENT_GATEWAY_ERROR once the retries ran out. On a PENDING request that is waiting for a retry it is
+            the last failure
+        error_message: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     TransferRequest:
       type: object
