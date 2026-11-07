@@ -29,6 +29,7 @@ Guidance for Claude Code when working in this repository.
 - `ledger_entries` holds debit/credit legs, an append-only chain per wallet. Each leg carries `direction` (fixed by its `TransactionType`) and the wallet's `wallet_type`. Legs of one transaction share a `transaction_id`, and debits must equal credits. Postgres enforces it (see `003-create-ledger-entries-table.sql`):
   - a deferred constraint trigger rejects, at commit, a transaction with fewer than two entries or unbalanced entries, and triggers reject UPDATE/DELETE on both tables
   - each leg type posts on its own side and account class
+  - the same trigger ties a transaction to its legs: `ADD_MONEY` has exactly a `GATEWAY_CLEARING` and an `ADD_MONEY` leg, `TRANSFER` exactly one each of `TRANSFER_OUT`, `FEE_OUT`, `TRANSFER_IN`, `FEE_IN`, the principal legs carry `transactions.amount`, and legs cannot be added to a committed transaction later (a transfer always has a fee, `fees.amount > 0`)
   - `entry_no` runs 1, 2, 3… with no gaps or forks
   - each entry's `balance_before` must equal the previous entry's `balance_after`
   - entry 1 starts from 0
