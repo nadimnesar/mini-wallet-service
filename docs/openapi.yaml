@@ -250,7 +250,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Same key and body replays the stored result; same key with a different body returns 422. A key identifies one attempt: a stored business rejection (e.g. INSUFFICIENT_BALANCE) is replayed for that key, so retry with a new key after the cause is fixed.
+      description: 'Same key and body replays the stored result; same key with a different body returns 422. A key identifies one attempt: a stored business rejection (e.g. INSUFFICIENT_BALANCE) is replayed for that key, so retry with a new key after the cause is fixed.'
       schema: { type: string, minLength: 1, maxLength: 255, example: 'add-money-0001' }
 
   responses:
@@ -320,7 +320,7 @@ components:
         wallet_id: { type: string, format: uuid }
         phone: { type: string, example: '01712345678' }
         currency: { type: string, enum: [BDT] }
-        balance: { type: integer, format: int64, description: Poisha; the balance_after of the latest ledger entry, 0 if none }
+        balance: { type: integer, format: int64, description: 'Poisha; the balance_after of the latest ledger entry, 0 if none' }
         updated_at: { type: string, format: date-time, description: When the balance last changed (latest ledger entry); the wallet's creation time if it never has }
 
     AddMoneyRequest:
@@ -399,7 +399,7 @@ components:
         balance_after: { type: integer, format: int64 }
         counterparty_wallet_id: { type: string, format: uuid }
         counterparty_phone: { type: string, example: '01712345678' }
-        created_at: { type: string, format: date-time, description: When the entry was posted (after the wallet locks were taken), not when the request started }
+        created_at: { type: string, format: date-time, description: 'When the entry was posted (after the wallet locks were taken), not when the request started' }
 
     TransactionDetailResponse:
       type: object
