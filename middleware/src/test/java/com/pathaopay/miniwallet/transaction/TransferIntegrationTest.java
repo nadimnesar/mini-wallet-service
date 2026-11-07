@@ -246,6 +246,17 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void anAmountWhoseSumWithTheFeeOverflowsIsRejectedAsInvalid() {
+        // amount + fee wraps to a negative long for these; it must not slip past the limit or balance check.
+        for (long amount : List.of(Long.MAX_VALUE, Long.MAX_VALUE - 499, Long.MAX_VALUE - 500)) {
+            assertError(transfer("key-" + amount, alice, bob, amount, null), 400, "INVALID_AMOUNT");
+        }
+        assertEquals(50000, balance(alice));
+        assertEquals(0, balance(bob));
+        assertEquals(0, balance(REVENUE));
+    }
+
+    @Test
     void limitIsReadFromTheLimitsTableAndFollowsTheFee() {
         setTransferLimit(1000, 20000);
         setTransferFee(1000);

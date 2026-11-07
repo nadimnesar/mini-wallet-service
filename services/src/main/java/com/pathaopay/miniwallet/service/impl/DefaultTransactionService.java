@@ -153,7 +153,8 @@ public class DefaultTransactionService implements TransactionService {
                 new TreeSet<>(List.of(senderWallet.id(), receiverWallet.id(), revenue)));
         LedgerPoster.Chain sender = chains.get(senderWallet.id());
         LedgerPoster.Chain receiver = chains.get(receiverWallet.id());
-        if (sender.balance() < amount + fee) {
+        // Subtract instead of adding amount + fee, which could overflow (balance and fee are never negative).
+        if (sender.balance() - fee < amount) {
             throw new InsufficientBalanceException(ErrorMessage.INSUFFICIENT_BALANCE.formatted(from));
         }
 

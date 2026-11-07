@@ -27,7 +27,8 @@ public class TransactionRules {
 
     /**
      * Checks {@code amount} against the limits table: it must be at least the minimum, and what the customer is
-     * charged in total ({@code amount + fee}) must not exceed the single-transaction maximum.
+     * charged in total ({@code amount + fee}) must not exceed the single-transaction maximum. The sum is never
+     * computed: for an amount near {@code Long.MAX_VALUE} it would overflow and pass the check.
      */
     public void requireWithinLimit(TransactionType type, long amount, long fee) {
         TransactionLimit limit = limitRepository.find(type)
@@ -36,8 +37,8 @@ public class TransactionRules {
             throw new InvalidAmountException(ErrorMessage.AMOUNT_BELOW_MIN.formatted(
                     limit.minAmount(), bdt(limit.minAmount())));
         }
-        if (amount + fee > limit.maxAmount()) {
-            long maxAmount = limit.maxAmount() - fee;
+        long maxAmount = limit.maxAmount() - fee;
+        if (amount > maxAmount) {
             throw new InvalidAmountException(fee == 0
                     ? ErrorMessage.AMOUNT_ABOVE_MAX.formatted(limit.maxAmount(), bdt(limit.maxAmount()))
                     : ErrorMessage.AMOUNT_PLUS_FEE_ABOVE_MAX.formatted(fee, bdt(fee),
