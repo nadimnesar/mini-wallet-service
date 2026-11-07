@@ -12,6 +12,7 @@ import com.pathaopay.miniwallet.common.exception.idempotency.ReplayedFailureExce
 import com.pathaopay.miniwallet.common.exception.payment.DuplicateGatewayRefException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentDeclinedException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentMismatchException;
+import com.pathaopay.miniwallet.common.exception.payment.PaymentPendingException;
 import com.pathaopay.miniwallet.common.exception.transaction.AddMoneyRequestNotFoundException;
 import com.pathaopay.miniwallet.common.exception.transaction.InsufficientBalanceException;
 import com.pathaopay.miniwallet.common.exception.transaction.InvalidAmountException;
@@ -393,6 +394,10 @@ public class DefaultTransactionService implements TransactionService {
 
     private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequestRecord request,
                                                   String phone) {
+        if (payment.status() == PaymentVerification.Status.PENDING) {
+            throw new PaymentPendingException(ErrorMessage.PAYMENT_PENDING.formatted(
+                    request.paymentMethod(), request.gatewayRef(), payment.declineReason()));
+        }
         if (payment.status() != PaymentVerification.Status.CAPTURED) {
             throw new PaymentDeclinedException(ErrorMessage.PAYMENT_DECLINED.formatted(
                     request.paymentMethod(), request.gatewayRef(), payment.status(), payment.declineReason()));
