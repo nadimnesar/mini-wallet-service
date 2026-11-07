@@ -4,8 +4,9 @@ A digital-wallet backend built around one promise: money is never created from n
 duplicated and never lost.
 
 ```bash
-docker compose up --build   # build and start everything; the API is on http://localhost:8080
-./mvnw test                 # ~166 tests against real Postgres / RabbitMQ (Testcontainers)
+docker compose up              # start everything; the API is on http://localhost:8080
+./mvnw test                    # ~166 tests against real Postgres / RabbitMQ (Testcontainers)
+./load-test/run-benchmarks.sh  # run the k6 benchmark suite against the running service
 ```
 
 The stack also uses these ports, so keep them free: PostgreSQL `5432`, RabbitMQ `5672` (management UI on `15672`) and
@@ -440,29 +441,21 @@ flowchart LR
 
 ---
 
-## Load Testing
+## Load Testing Benchmark
 
-The service was benchmarked under heavy concurrent traffic using **k6** against the full Docker Compose stack on an Intel Core i3-1115G4 with 8 GB RAM.
+The service was benchmarked under heavy concurrent traffic using **k6** against the full Docker Compose stack on an
+Intel Core i3-1115G4 with 8 GB RAM.
 
-### Benchmark summary
-
-| Workload / Endpoint                         | Concurrency / Target |        Sustained TPS         | Avg Latency | p95 Latency | Success Rate |
-|---------------------------------------------|:--------------------:|:----------------------------:|:-----------:|:-----------:|:------------:|
-| **Balance Inquiries (`GET /balance`)**      |       500 VUs        | **~3,686 TPS** (peak ~4,100) |   82.7 ms   |  248.3 ms   |   **100%**   |
-| **Target Arrival Rate (`GET /balance`)**    |  Up to 6,000 req/s   |     **~3,054–4,800 TPS**     |   64.9 ms   |  232.1 ms   |   **100%**   |
-| **Mixed Production Workload**               |       300 VUs        |        **~1,305 TPS**        |  117.4 ms   |  288.5 ms   |   **100%**   |
-| **Wallet Creation (`POST /wallets`)**       |        50 VUs        |         **~875 TPS**         |   29.8 ms   |   79.0 ms   |   **100%**   |
-| **Add-Money Ingestion (`POST /add-money`)** |        50 VUs        |         **~470 TPS**         |   56.4 ms   |  162.0 ms   |   **100%**   |
-| **Add-Money Background Processing**         |      Background      |       **~90–100 TPS**        |    Async    |    Async    |   **100%**   |
-| **P2P Transfers (`POST /transfers`)**       |       120 VUs        |         **~196 TPS**         |  350.9 ms   |  663.6 ms   |   **100%**   |
-
-### Running the load tests
-
-All test scripts are located in [`load-test/`](load-test/):
-
-```bash
-./load-test/run-benchmarks.sh
-```
+| Workload / Endpoint                         | Concurrency / Target |    Sustained TPS     | Avg Latency | p95 Latency | Success Rate |
+|---------------------------------------------|:--------------------:|:--------------------:|:-----------:|:-----------:|:------------:|
+| **Balance Inquiries (`GET /balance`)**      |       100 VUs        |    **~4,746 TPS**    |   12.8 ms   |   40.2 ms   |   **100%**   |
+| **Extreme Read Stress (`GET /balance`)**    |       500 VUs        |    **~3,576 TPS**    |   85.6 ms   |  241.9 ms   |   **100%**   |
+| **Target Arrival Rate (`GET /balance`)**    |  Up to 6,000 req/s   | **~3,054–4,800 TPS** |   64.9 ms   |  232.1 ms   |   **100%**   |
+| **Wallet Creation (`POST /wallets`)**       |       100 VUs        |    **~2,019 TPS**    |   30.3 ms   |   69.1 ms   |   **100%**   |
+| **Add-Money Ingestion (`POST /add-money`)** |        50 VUs        |    **~1,026 TPS**    |   27.6 ms   |   58.8 ms   |   **100%**   |
+| **Add-Money Background Processing**         |      Background      |   **~90–100 TPS**    |    Async    |    Async    |   **100%**   |
+| **P2P Transfers (`POST /transfers`)**       |        20 VUs        |     **~186 TPS**     |   68.2 ms   |  111.1 ms   |   **100%**   |
+| **Mixed Production Workload**               |       300 VUs        |    **~1,290 TPS**    |  118.8 ms   |  291.6 ms   |  **99.7%**   |
 
 ---
 

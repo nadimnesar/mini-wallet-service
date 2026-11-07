@@ -33,10 +33,7 @@ case "${SCENARIO}" in
     run_k6 "add-money-ingest.js" "Add-Money Ingestion TPS"
     ;;
   "transfer")
-    run_k6 "transfers.js" "P2P Transfers TPS (Normal Concurrency)"
-    ;;
-  "transfer-stress")
-    run_k6 "transfer-stress-test.js" "Heavy Transfer Stress (Up to 120 VUs)"
+    run_k6 "transfers.js" "P2P Transfers TPS"
     ;;
   "mixed")
     run_k6 "mixed-workload.js" "Heavy Mixed Workload (Up to 300 VUs)"
@@ -50,11 +47,10 @@ case "${SCENARIO}" in
     run_k6 "add-money-ingest.js" "3. Add-Money Ingestion TPS"
     run_k6 "transfers.js" "4. P2P Transfers TPS"
     run_k6 "mixed-workload.js" "5. Heavy Mixed Workload (Up to 300 VUs)"
-    run_k6 "transfer-stress-test.js" "6. Heavy Transfer Stress (Up to 120 VUs)"
-    run_k6 "heavy-read-stress.js" "7. Extreme Read Stress (Up to 500 VUs)"
+    run_k6 "heavy-read-stress.js" "6. Extreme Read Stress (Up to 500 VUs)"
     ;;
   *)
-    echo "Usage: $0 [TARGET_URL] [all|read|heavy-read|create|add-money|transfer|transfer-stress|mixed|arrival-rate]"
+    echo "Usage: $0 [TARGET_URL] [all|read|heavy-read|create|add-money|transfer|mixed|arrival-rate]"
     exit 1
     ;;
 esac
