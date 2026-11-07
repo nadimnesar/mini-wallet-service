@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -185,6 +186,18 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     void amountOutsideLimitsIsRejected() {
         assertError(transfer("key-1", alice, bob, 99, null), 400, "VALIDATION_ERROR");
         assertError(transfer("key-2", alice, bob, 2_500_001, null), 400, "VALIDATION_ERROR");
+    }
+
+    @Test
+    void amountMustBeAnExactInteger() {
+        int n = 0;
+        for (String amount : List.of("10000.9", "10000.0", "\"10000\"", "1e4")) {
+            assertError(send("key-" + n++, """
+                    {"from_phone": "%s", "to_phone": "%s", "amount": %s}""".formatted(alice, bob, amount)),
+                    400, "INVALID_PAYLOAD");
+        }
+        assertEquals(0, jdbcClient.sql("SELECT count(*) FROM " + Transactions.TABLE + " WHERE "
+                + Transactions.TYPE + " = 'TRANSFER'").query(Long.class).single());
     }
 
     @Test

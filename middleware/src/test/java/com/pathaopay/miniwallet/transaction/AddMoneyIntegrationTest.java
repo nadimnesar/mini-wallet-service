@@ -296,6 +296,18 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void amountMustBeAnExactInteger() {
+        for (String amount : List.of("10000.9", "10000.0", "\"10000\"", "1e4")) {
+            Response response = send("key-" + amount, """
+                    {"phone": "%s", "amount": %s, "gateway_ref": "%s", "payment_method": "VISA"}"""
+                    .formatted(phone, amount, ref("GW-" + amount)));
+            assertError(response, 400, "INVALID_PAYLOAD");
+        }
+        assertEquals(0, gatewayCalls("visa"));
+        assertEquals(0, balanceOf(phone));
+    }
+
+    @Test
     void unsupportedPaymentMethodIsRejected() {
         Response response = addMoney(phone, "key-1", 50000, ref("GW-1"), "AMEX");
 
