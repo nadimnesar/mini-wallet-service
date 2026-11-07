@@ -67,7 +67,7 @@ public final class ErrorConstants {
         public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
         /** Format with the wallet phone and its account type. */
         public static final String SYSTEM_WALLET_NOT_ALLOWED =
-                "Wallet %s is a %s ledger account, not a customer wallet, and cannot take part in this operation.";
+                "Wallet %s is a ledger account of type %s, not a customer wallet, and cannot take part in this operation.";
         public static final String INVALID_DATE_RANGE = "from must not be after to";
         public static final String DUPLICATE_GATEWAY_REF_PREFIX = "This gateway_ref has already been used: ";
         public static final String IDEMPOTENCY_KEY_REUSED =
