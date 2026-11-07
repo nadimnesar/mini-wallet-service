@@ -107,7 +107,7 @@ How it works:
 3. A worker asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network, and for this wallet: the request carries the wallet's phone as `merchant_reference` and the gateway must echo it back. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet), and the request becomes `COMPLETED`. Topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`.
 4. The `gateway_ref` credits only once, however many messages or requests there are: a request is processed under its row lock, a request that is no longer `PENDING` is skipped, and `transactions.gateway_ref` is unique. A `gateway_ref` that is already credited or already queued is `409 DUPLICATE_GATEWAY_REF` at once; a `FAILED` request frees its `gateway_ref`.
 
-**Retries.** Only transient gateway failures (unreachable, timeout, 5xx: `PAYMENT_GATEWAY_ERROR`) are retried. The failed attempt is counted and the request stays `PENDING` (with the last error visible) while it waits on a retry queue `wallet.add-money.retry.N`. That queue has the delay as its TTL and dead-letters back to the work queue, so the broker brings the message back without any consumer or sleeping thread, and the wait survives restarts. The delays are `miniwallet.messaging.add-money.retry-delays` (default `5s,30s,2m`: up to 4 attempts in all). When the attempts run out the request is `FAILED` with `PAYMENT_GATEWAY_ERROR` (message ending in `gave up after N attempts`) and its id goes to the dead-letter queue `wallet.add-money.dlq`. A business rejection (declined, mismatch, not found, ...) is final at once and never retried. An unexpected worker error (for example the database being down) is dead-lettered, and the dispatcher republishes the still-`PENDING` request later.
+**Retries.** Only transient failures are retried: the gateway being unreachable, timing out or failing (`PAYMENT_GATEWAY_ERROR`), and a payment the gateway has not captured yet, such as 3-D Secure in progress (`PAYMENT_PENDING`). The failed attempt is counted and the request stays `PENDING` (with the last error visible) while it waits on a retry queue `wallet.add-money.retry.N`. That queue has the delay as its TTL and dead-letters back to the work queue, so the broker brings the message back without any consumer or sleeping thread, and the wait survives restarts. The delays are `miniwallet.messaging.add-money.retry-delays` (default `5s,30s,2m`: up to 4 attempts in all). When the attempts run out the request is `FAILED` with the last error code, `PAYMENT_GATEWAY_ERROR` or `PAYMENT_PENDING` (message ending in `gave up after N attempts`) and its id goes to the dead-letter queue `wallet.add-money.dlq`. A business rejection (declined, mismatch, not found, ...) is final at once and never retried. An unexpected worker error (for example the database being down) is dead-lettered, and the dispatcher republishes the still-`PENDING` request later.
 
 | Error | Status | When |
 |---|---|---|
@@ -124,7 +124,8 @@ Failures that need the gateway are not HTTP errors of the POST any more; they en
 
 | `error_code` | When |
 |---|---|
-| `PAYMENT_DECLINED` | Gateway reports the payment as declined or not yet captured |
+| `PAYMENT_DECLINED` | Gateway reports the payment as declined |
+| `PAYMENT_PENDING` | Gateway still reports the payment as not captured (for example 3-D Secure in progress) on every attempt |
 | `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | Gateway doesn't know the payment / captured a different amount, currency, network or wallet |
 | `PAYMENT_GATEWAY_ERROR` | Gateway unreachable, timed out or failed on every attempt |
 
@@ -158,7 +159,8 @@ Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", 
 |---|---|---|
 | *(any other UUID)* | Captured for the requested amount | `COMPLETED` |
 | `00000402-` | Declined: `INSUFFICIENT_FUNDS` | `FAILED` `PAYMENT_DECLINED` |
-| `00000202-` | Pending 3-D Secure | `FAILED` `PAYMENT_DECLINED` |
+| `00000202-` | Pending 3-D Secure on every call | retried, then `FAILED` `PAYMENT_PENDING` |
+| `00000203-` | Pending 3-D Secure on the first two calls, then captured (one WireMock scenario shared by all such refs, reset with `POST /__admin/scenarios/reset`) | retried, then `COMPLETED` on the third attempt |
 | `00000404-` | 404 | `FAILED` `PAYMENT_NOT_FOUND` |
 | `00000422-` | Captured for 100 poisha | `FAILED` `PAYMENT_MISMATCH` |
 | `00000423-` | Captured for another wallet (`merchant_reference` differs) | `FAILED` `PAYMENT_MISMATCH` |

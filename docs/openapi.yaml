@@ -323,7 +323,7 @@ components:
         error_code:
           type: [string, 'null']
           description: >-
-            Set once FAILED: PAYMENT_DECLINED, PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED, DUPLICATE_GATEWAY_REF
+            Set once FAILED: PAYMENT_DECLINED, PAYMENT_PENDING (still not captured after every attempt), PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED, DUPLICATE_GATEWAY_REF
             or INVALID_AMOUNT, or PAYMENT_GATEWAY_ERROR once the retries ran out. On a PENDING request that is waiting for a retry it is
             the last failure
         error_message: { type: [string, 'null'] }
