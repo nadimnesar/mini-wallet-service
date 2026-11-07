@@ -223,6 +223,41 @@ paths:
               schema: { $ref: '#/components/schemas/TransactionDetailResponse' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /actuator/health/liveness:
+    get:
+      summary: Liveness probe (the process is up)
+      operationId: getLiveness
+      tags: [Health]
+      responses:
+        '200':
+          description: Up
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+        '503':
+          description: Down
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
+  /actuator/health/readiness:
+    get:
+      summary: Readiness probe (the database answers; RabbitMQ is deliberately not checked, add-money is still accepted while the broker is down)
+      operationId: getReadiness
+      tags: [Health]
+      description: Used as the docker compose healthcheck of the app. No other actuator endpoint is exposed, and no component details are returned.
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
 components:
   parameters:
     IdempotencyKey:
@@ -240,6 +275,12 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [UP, DOWN] }
+
     Amount:
       type: integer
       format: int64
