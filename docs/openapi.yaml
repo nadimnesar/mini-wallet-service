@@ -245,8 +245,8 @@ components:
         user_id: { type: string, format: uuid }
         phone:
           type: string
-          pattern: '^(?:\+?880|0)?(1\d{9})$'
-          description: Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; stored as 01XXXXXXXXX
+          pattern: '^(?:\+?880|0)?(1[3-9]\d{8})$'
+          description: Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX, with an assigned operator prefix (013-019); stored as 01XXXXXXXXX
           example: '+8801712345678'
 
     WalletResponse:
@@ -313,7 +313,7 @@ components:
         to_wallet_id: { type: string, format: uuid }
         to_phone: { type: string, example: '01712345678' }
         amount: { type: integer, format: int64 }
-        fee: { type: integer, format: int64, description: Fee in poisha charged to the sender on top of amount (500 = 5 BDT) }
+        fee: { type: integer, format: int64, description: Fee in poisha charged to the sender on top of amount (500 = 5 BDT by default; read from the fees table) }
         note: { type: [string, 'null'], maxLength: 255 }
         status: { type: string, enum: [COMPLETED] }
         created_at: { type: string, format: date-time }
