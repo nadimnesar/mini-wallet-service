@@ -45,9 +45,9 @@ public class JdbcTransactionRepository implements TransactionRepository {
                     LedgerEntries.ID, LedgerEntries.WALLET_ID, LedgerEntries.WALLET_TYPE,
                     LedgerEntries.ENTRY_NO, LedgerEntries.TYPE, LedgerEntries.DIRECTION,
                     LedgerEntries.AMOUNT, LedgerEntries.BALANCE_BEFORE, LedgerEntries.BALANCE_AFTER,
-                    LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID) + ")"
+                    LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID, LedgerEntries.CREATED_AT) + ")"
                     + " VALUES (:id, :walletId, :walletType, :entryNo, :type, :direction, :amount, :balanceBefore,"
-                    + " :balanceAfter, :counterpartyWalletId, :transactionId)"
+                    + " :balanceAfter, :counterpartyWalletId, :transactionId, clock_timestamp())"
                     + " RETURNING " + ENTRY_COLUMNS;
 
     private static final String FIND_LATEST =
@@ -75,6 +75,10 @@ public class JdbcTransactionRepository implements TransactionRepository {
                     + " WHERE " + LedgerEntries.TRANSACTION_ID + " = :transactionId"
                     + " AND " + LedgerEntries.TYPE + " = :type";
 
+    // One wallet: its ledger chain (entry_no) is the true order. All wallets: entry_no is per wallet, so the posting time
+    // decides (created_at is clock_timestamp() taken under the wallet locks), with the UUIDv7 id as tie-breaker.
+    private static final String NEWEST_FIRST_OF_WALLET = " ORDER BY e." + LedgerEntries.ENTRY_NO + " DESC";
+
     private static final String NEWEST_FIRST =
             " ORDER BY e." + LedgerEntries.CREATED_AT + " DESC, e." + LedgerEntries.ID + " DESC";
 
@@ -85,8 +89,8 @@ public class JdbcTransactionRepository implements TransactionRepository {
     private static final String INSERT_TRANSACTION =
             "INSERT INTO " + Transactions.TABLE + " (" + String.join(", ",
                     Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
-                    Transactions.PAYMENT_METHOD, Transactions.NOTE) + ")"
-                    + " VALUES (:id, :type, :amount, :gatewayRef, :paymentMethod, :note)";
+                    Transactions.PAYMENT_METHOD, Transactions.NOTE, Transactions.CREATED_AT) + ")"
+                    + " VALUES (:id, :type, :amount, :gatewayRef, :paymentMethod, :note, clock_timestamp())";
 
     // A concurrent request that already credited the same gateway_ref makes this insert a no-op instead of
     // aborting the database transaction.
@@ -199,7 +203,8 @@ public class JdbcTransactionRepository implements TransactionRepository {
     @Override
     public List<LedgerEntryView> search(TransactionFilter filter, int limit, long offset) {
         Where where = Where.of(filter);
-        return jdbcClient.sql(VIEW_SELECT + where.sql + NEWEST_FIRST + " LIMIT :limit OFFSET :offset")
+        String order = filter.walletId() != null ? NEWEST_FIRST_OF_WALLET : NEWEST_FIRST;
+        return jdbcClient.sql(VIEW_SELECT + where.sql + order + " LIMIT :limit OFFSET :offset")
                 .params(where.params)
                 .param("limit", limit)
                 .param("offset", offset)

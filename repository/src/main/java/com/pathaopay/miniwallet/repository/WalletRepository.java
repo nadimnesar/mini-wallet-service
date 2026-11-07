@@ -11,14 +11,13 @@ import java.util.UUID;
 public interface WalletRepository {
 
     /**
-     * Inserts a new customer (LIABILITY) wallet unless {@code userId} or {@code phone} is already used by
-     * another wallet. Safe under concurrency: at most one of several racing inserts succeeds.
+     * Inserts a new wallet of the given account class unless {@code phone} is already used: the phone is the only
+     * uniqueness rule (a user may own any number of wallets of any type). Safe under concurrency: at most one of
+     * several racing inserts for the same phone succeeds.
      *
-     * @return the created wallet, or empty if the user or the phone already has a wallet
+     * @return the created wallet, or empty if a wallet with that phone already exists
      */
-    Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency);
-
-    boolean existsByUserId(UUID userId);
+    Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency, WalletType type);
 
     boolean existsByPhone(String phone);
 
@@ -26,8 +25,6 @@ public interface WalletRepository {
 
     /** Looks a wallet up by its canonical phone number (01XXXXXXXXX), the external identity. */
     Optional<Wallet> findByPhone(String phone);
-
-    boolean existsById(UUID walletId);
 
     /** The wallet's balance from its newest ledger entry, or empty if it has no entries (balance 0). */
     Optional<WalletBalance> findLatestBalance(UUID walletId);

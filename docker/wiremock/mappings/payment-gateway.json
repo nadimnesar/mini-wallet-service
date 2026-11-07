@@ -117,6 +117,102 @@
       }
     },
     {
+      "name": "gateway_ref 00000503-...: 1st call fails (503)",
+      "priority": 2,
+      "scenarioName": "flaky-gateway",
+      "requiredScenarioState": "Started",
+      "newScenarioState": "Failed once",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000503-.*" } } ]
+      },
+      "response": { "status": 503, "jsonBody": { "error": "SERVICE_UNAVAILABLE" }, "headers": { "Content-Type": "application/json" } }
+    },
+    {
+      "name": "gateway_ref 00000503-...: 2nd call fails (503)",
+      "priority": 2,
+      "scenarioName": "flaky-gateway",
+      "requiredScenarioState": "Failed once",
+      "newScenarioState": "Failed twice",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000503-.*" } } ]
+      },
+      "response": { "status": 503, "jsonBody": { "error": "SERVICE_UNAVAILABLE" }, "headers": { "Content-Type": "application/json" } }
+    },
+    {
+      "name": "gateway_ref 00000503-...: 3rd and later calls are captured",
+      "priority": 2,
+      "scenarioName": "flaky-gateway",
+      "requiredScenarioState": "Failed twice",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000503-.*" } } ]
+      },
+      "response": {
+        "status": 200,
+        "bodyFileName": "captured.json",
+        "transformers": [ "response-template" ],
+        "headers": { "Content-Type": "application/json" }
+      }
+    },
+    {
+      "name": "gateway_ref 00000203-...: 1st call still pending",
+      "priority": 2,
+      "scenarioName": "pending-gateway",
+      "requiredScenarioState": "Started",
+      "newScenarioState": "Pending once",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000203-.*" } } ]
+      },
+      "response": {
+        "status": 200,
+        "bodyFileName": "pending.json",
+        "transformers": [ "response-template" ],
+        "headers": { "Content-Type": "application/json" }
+      }
+    },
+    {
+      "name": "gateway_ref 00000203-...: 2nd call still pending",
+      "priority": 2,
+      "scenarioName": "pending-gateway",
+      "requiredScenarioState": "Pending once",
+      "newScenarioState": "Pending twice",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000203-.*" } } ]
+      },
+      "response": {
+        "status": 200,
+        "bodyFileName": "pending.json",
+        "transformers": [ "response-template" ],
+        "headers": { "Content-Type": "application/json" }
+      }
+    },
+    {
+      "name": "gateway_ref 00000203-...: 3rd and later calls are captured",
+      "priority": 2,
+      "scenarioName": "pending-gateway",
+      "requiredScenarioState": "Pending twice",
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000203-.*" } } ]
+      },
+      "response": {
+        "status": 200,
+        "bodyFileName": "captured.json",
+        "transformers": [ "response-template" ],
+        "headers": { "Content-Type": "application/json" }
+      }
+    },
+    {
       "name": "Any other gateway_ref: payment captured",
       "priority": 10,
       "request": {

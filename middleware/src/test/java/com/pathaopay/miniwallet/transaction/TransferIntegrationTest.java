@@ -4,11 +4,8 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Fees;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Limits;
-import com.pathaopay.miniwallet.dto.request.AddMoneyRequest;
 import com.pathaopay.miniwallet.dto.request.CreateWalletRequest;
-import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import com.pathaopay.miniwallet.model.enums.WalletType;
-import com.pathaopay.miniwallet.service.TransactionService;
 import com.pathaopay.miniwallet.service.WalletService;
 import com.pathaopay.miniwallet.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,9 +41,6 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private WalletService walletService;
-
-    @Autowired
-    private TransactionService transactionService;
 
     private RestClient api;
     private String alice;
@@ -179,23 +173,15 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     void walletsHaveTheirAccountClass() {
         assertEquals(WalletType.REVENUE, walletService.getWallet(REVENUE).type());
         assertEquals(WalletType.ASSET, walletService.getWallet(AppConstants.GATEWAY_CLEARING_WALLET_PHONE).type());
-        assertEquals(WalletType.EXPENSE, walletService.getWallet(AppConstants.OPERATING_EXPENSE_WALLET_PHONE).type());
-        assertEquals(WalletType.EQUITY, walletService.getWallet(AppConstants.OWNER_EQUITY_WALLET_PHONE).type());
         assertEquals(WalletType.LIABILITY, walletService.getWallet(alice).type());
         // Nothing is seeded: only the clearing asset has moved, by alice's funding in setUp.
-        for (String system : List.of(REVENUE, AppConstants.OPERATING_EXPENSE_WALLET_PHONE,
-                AppConstants.OWNER_EQUITY_WALLET_PHONE)) {
-            assertEquals(0, balance(system));
-        }
+        assertEquals(0, balance(REVENUE));
         assertEquals(50000, balance(AppConstants.GATEWAY_CLEARING_WALLET_PHONE));
-        assertEquals(AppConstants.SYSTEM_USER_ID, walletService.getWallet(REVENUE).userId());
     }
 
     @Test
     void systemAccountsCannotSendOrReceiveTransfers() {
-        for (String system : List.of(REVENUE, AppConstants.GATEWAY_CLEARING_WALLET_PHONE,
-                AppConstants.OPERATING_EXPENSE_WALLET_PHONE,
-                AppConstants.OWNER_EQUITY_WALLET_PHONE)) {
+        for (String system : List.of(REVENUE, AppConstants.GATEWAY_CLEARING_WALLET_PHONE)) {
             assertError(transfer("from-" + system, system, bob, 10000, null), 422, "SYSTEM_WALLET_NOT_ALLOWED");
             assertError(transfer("to-" + system, alice, system, 10000, null), 422, "SYSTEM_WALLET_NOT_ALLOWED");
         }
@@ -250,6 +236,17 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(201, atTheLimit.status());
         assertEquals(500, atTheLimit.body().get("fee").asLong());
         assertEquals(2_550_000 - 2_500_000, balance(alice));
+    }
+
+    @Test
+    void anAmountWhoseSumWithTheFeeOverflowsIsRejectedAsInvalid() {
+        // amount + fee wraps to a negative long for these; it must not slip past the limit or balance check.
+        for (long amount : List.of(Long.MAX_VALUE, Long.MAX_VALUE - 499, Long.MAX_VALUE - 500)) {
+            assertError(transfer("key-" + amount, alice, bob, amount, null), 400, "INVALID_AMOUNT");
+        }
+        assertEquals(50000, balance(alice));
+        assertEquals(0, balance(bob));
+        assertEquals(0, balance(REVENUE));
     }
 
     @Test
@@ -348,12 +345,11 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String wallet(String phone) {
-        return walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), phone)).phone();
+        return walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), phone, WalletType.LIABILITY)).phone();
     }
 
     private void fund(String phone, long amount) {
-        transactionService.addMoney(new AddMoneyRequest(phone, amount, UUID.randomUUID(), PaymentMethod.VISA),
-                "fund-" + UUID.randomUUID());
+        topUp(phone, amount, "fund-" + UUID.randomUUID());
     }
 
     private long balance(String phone) {

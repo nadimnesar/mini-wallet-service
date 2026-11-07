@@ -18,6 +18,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # Message broker for asynchronous add-money. Management UI: http://localhost:15672 (miniwallet / miniwallet).
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: miniwallet-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: miniwallet
+      RABBITMQ_DEFAULT_PASS: miniwallet
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
   # Mock payment gateway for Visa and Mastercard (WireMock). Stubs: docker/wiremock.
   payment-gateway:
     image: wiremock/wiremock:3.13.2
@@ -28,7 +46,7 @@ services:
     volumes:
       - ./docker/wiremock:/home/wiremock:ro
 
-  # Spring Boot application: talks to PostgreSQL and the payment gateway.
+  # Spring Boot application: talks to PostgreSQL, RabbitMQ and the payment gateway.
   app:
     build: .
     image: mini-wallet-service:latest
@@ -37,15 +55,27 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/miniwallet
       DB_USERNAME: miniwallet
       DB_PASSWORD: miniwallet
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: miniwallet
+      RABBITMQ_PASSWORD: miniwallet
       PAYMENT_GATEWAY_URL: http://payment-gateway:8080
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       payment-gateway:
         condition: service_started
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
 
 volumes:
   postgres-data:
+  rabbitmq-data:

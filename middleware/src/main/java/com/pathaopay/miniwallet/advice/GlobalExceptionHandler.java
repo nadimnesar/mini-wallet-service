@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -38,7 +39,7 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.PAYMENT_DECLINED, HttpStatus.PAYMENT_REQUIRED),
             Map.entry(ErrorCode.WALLET_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.TRANSACTION_NOT_FOUND, HttpStatus.NOT_FOUND),
-            Map.entry(ErrorCode.DUPLICATE_WALLET, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ADD_MONEY_REQUEST_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.DUPLICATE_PHONE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INSUFFICIENT_BALANCE, HttpStatus.UNPROCESSABLE_ENTITY),
@@ -51,6 +52,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
+        // A query parameter that cannot be converted (bad enum or date) is a bad argument, not a failed constraint.
+        FieldError conversionFailure = ex.getBindingResult().getFieldErrors().stream()
+                .filter(FieldError::isBindingFailure).findFirst().orElse(null);
+        if (conversionFailure != null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorCode.INVALID_ARGUMENT,
+                    ErrorMessage.INVALID_ARGUMENT_PREFIX + conversionFailure.getField()));
+        }
         String detailMessage = ex.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .findFirst()

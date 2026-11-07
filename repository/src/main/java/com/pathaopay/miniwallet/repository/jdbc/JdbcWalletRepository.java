@@ -23,12 +23,12 @@ public class JdbcWalletRepository implements WalletRepository {
     private static final String WALLET_COLUMNS = String.join(", ",
             Wallets.WALLET_ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY, Wallets.TYPE, Wallets.CREATED_AT);
 
-    // ON CONFLICT (any unique constraint: user_id or phone) makes the one-wallet-per-user and
-    // one-wallet-per-phone rules race-safe: concurrent duplicates insert nothing.
+    // ON CONFLICT (the unique phone) makes the one-wallet-per-phone rule race-safe: concurrent duplicates insert nothing.
     private static final String INSERT_IF_ABSENT =
             "INSERT INTO " + Wallets.TABLE
-                    + " (" + String.join(", ", Wallets.WALLET_ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY) + ")"
-                    + " VALUES (:id, :userId, :phone, :currency)"
+                    + " (" + String.join(", ", Wallets.WALLET_ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY,
+                    Wallets.TYPE) + ")"
+                    + " VALUES (:id, :userId, :phone, :currency, :type)"
                     + " ON CONFLICT DO NOTHING"
                     + " RETURNING " + WALLET_COLUMNS;
 
@@ -46,14 +46,8 @@ public class JdbcWalletRepository implements WalletRepository {
                     + " ORDER BY " + LedgerEntries.ENTRY_NO + " DESC"
                     + " LIMIT 1";
 
-    private static final String EXISTS_BY_ID =
-            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id)";
-
     private static final String LOCK_FOR_UPDATE =
             "SELECT " + Wallets.TYPE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id FOR UPDATE";
-
-    private static final String EXISTS_BY_USER_ID =
-            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.USER_ID + " = :userId)";
 
     private static final String EXISTS_BY_PHONE =
             "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.PHONE + " = :phone)";
@@ -69,29 +63,20 @@ public class JdbcWalletRepository implements WalletRepository {
     private final JdbcClient jdbcClient;
 
     @Override
-    public Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency) {
+    public Optional<Wallet> insertIfAbsent(UUID walletId, UUID userId, String phone, Currency currency, WalletType type) {
         return jdbcClient.sql(INSERT_IF_ABSENT)
                 .param("id", walletId)
                 .param("userId", userId)
                 .param("phone", phone)
                 .param("currency", currency.name())
+                .param("type", type.name())
                 .query(WALLET_ROW_MAPPER)
                 .optional();
     }
 
     @Override
-    public boolean existsByUserId(UUID userId) {
-        return jdbcClient.sql(EXISTS_BY_USER_ID).param("userId", userId).query(Boolean.class).single();
-    }
-
-    @Override
     public boolean existsByPhone(String phone) {
         return jdbcClient.sql(EXISTS_BY_PHONE).param("phone", phone).query(Boolean.class).single();
-    }
-
-    @Override
-    public boolean existsById(UUID walletId) {
-        return jdbcClient.sql(EXISTS_BY_ID).param("id", walletId).query(Boolean.class).single();
     }
 
     @Override

@@ -2,17 +2,13 @@ package com.pathaopay.miniwallet.controller;
 
 import com.pathaopay.miniwallet.dto.response.TransactionDetailResponse;
 import com.pathaopay.miniwallet.dto.response.TransactionPageResponse;
-import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.service.TransactionService;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -24,31 +20,9 @@ public class TransactionController {
     private final TransactionService transactionService;
 
     @GetMapping
-    public ResponseEntity<TransactionPageResponse> listTransactions(
-            @RequestParam(name = "phone", required = false)
-            String phone,
-
-            @RequestParam(name = "type", required = false)
-            EntryType type,
-
-            @RequestParam(name = "from", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            Instant from,
-
-            @RequestParam(name = "to", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            Instant to,
-
-            @RequestParam(name = "page", defaultValue = "1")
-            @Min(value = 1, message = "page must be at least 1")
-            int page,
-
-            @RequestParam(name = "page_size", defaultValue = "20")
-            @Min(value = 1, message = "page_size must be at least 1")
-            @Max(value = 100, message = "page_size cannot exceed 100")
-            int pageSize) {
-        TransactionPageResponse response = transactionService.getTransactions(phone, type, from, to, page, pageSize);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<TransactionPageResponse> listTransactions(@Valid TransactionHistoryParams params) {
+        return ResponseEntity.ok(transactionService.getTransactions(params.phone(), params.type(), params.from(),
+                params.to(), params.page(), params.pageSize()));
     }
 
     @GetMapping(path = "/{transactionId}")

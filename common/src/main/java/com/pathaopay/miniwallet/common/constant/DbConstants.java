@@ -69,6 +69,25 @@ public final class DbConstants {
         public static final String CREATED_AT = "created_at";
     }
 
+    /** Table {@code add_money_requests}: one mutable row per accepted add-money request, the work item of the queue. */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class AddMoneyRequests {
+        public static final String TABLE = "add_money_requests";
+        public static final String ID = "id";
+        public static final String WALLET_ID = "wallet_id";
+        public static final String AMOUNT = "amount";
+        public static final String GATEWAY_REF = "gateway_ref";
+        public static final String PAYMENT_METHOD = "payment_method";
+        public static final String STATUS = "status";
+        public static final String ATTEMPTS = "attempts";
+        public static final String TRANSACTION_ID = "transaction_id";
+        public static final String ERROR_CODE = "error_code";
+        public static final String ERROR_MESSAGE = "error_message";
+        public static final String PUBLISHED_AT = "published_at";
+        public static final String CREATED_AT = "created_at";
+        public static final String UPDATED_AT = "updated_at";
+    }
+
     /** Table {@code idempotency_keys}. */
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class IdempotencyKeys {

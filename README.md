@@ -33,9 +33,17 @@ docker compose up
 
 #### Database
 
-`docker compose up` starts a single PostgreSQL 18 instance (`postgres`, host port `5432`) next to the app and the payment-gateway mock.
+`docker compose up` starts a single PostgreSQL 18 instance (`postgres`, host port `5432`) next to the app, RabbitMQ and the payment-gateway mock.
 Connection settings are under `spring.datasource.*` in `application.properties`; override them with `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`.
 After editing an applied Liquibase changeset, or when the PostgreSQL major version changes, reset the data with `docker compose down -v`.
+
+#### Health
+
+Actuator exposes only the health probes (no other actuator endpoint, no component details): `GET /actuator/health/liveness` (the process is up) and `GET /actuator/health/readiness` (the database answers). Readiness deliberately ignores RabbitMQ: with the broker down the service still accepts add-money (the outbox keeps the request), so it should stay in rotation. `docker compose` uses the readiness probe as the `app` healthcheck.
+
+#### RabbitMQ
+
+`docker compose up` also starts RabbitMQ 4 (`rabbitmq`, AMQP on host port `5672`, management UI on <http://localhost:15672>, user and password `miniwallet`). Add-money is asynchronous and needs it. Override the connection with `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME` and `RABBITMQ_PASSWORD`; the retry settings are under `miniwallet.messaging.add-money.*` in `application.properties`.
 
 Alternatively, to build and run the executable module locally:
 ```bash
@@ -52,7 +60,7 @@ To run the complete automated test suite across all modules:
 ./mvnw clean test
 ```
 
-Docker must be running. The integration tests (`WalletServiceIntegrationTest` in `middleware`) use Testcontainers to start a real PostgreSQL (`postgres:18-alpine`), apply the Liquibase changesets, and run the real service and repository against it. No in-memory database is used.
+Docker must be running. The integration tests in `middleware` (packages `ledger`, `service` and `transaction`: ledger constraints, wallets, add-money, transfers, history and health) use Testcontainers to start a real PostgreSQL (`postgres:18-alpine`), RabbitMQ (`rabbitmq:4-alpine`) and the WireMock payment gateway, apply the Liquibase changesets, and run the real service and repository against them. No in-memory database is used.
 
 To run a specific module's test suite:
 ```bash
@@ -65,10 +73,11 @@ To run a specific module's test suite:
 
 | Method | Path | Description | Idempotency Required |
 |--------|------|-------------|-----------------------|
-| `POST` | `/api/v1/wallets` | Create a new user wallet | No |
+| `POST` | `/api/v1/wallets` | Create a wallet of a given `type` (required, no default) | No |
 | `GET`  | `/api/v1/wallets/{phone}` | Retrieve wallet details (`wallet_id`, `user_id`, `phone`, `currency`, `type`, `created_at`) | No |
 | `GET`  | `/api/v1/wallets/{phone}/balance` | Retrieve the wallet balance and when it last changed (`updated_at`) | No |
-| `POST` | `/api/v1/wallets/add-money` | Add money to a wallet (`phone` in body) after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
+| `POST` | `/api/v1/wallets/add-money` | Request to add money to a wallet (`phone` in body). Answers 202; a worker credits the wallet after the card gateway confirms the payment | **Yes** (`Idempotency-Key`) |
+| `GET`  | `/api/v1/wallets/add-money/{request_id}` | Status of an add-money request (`PENDING`, `COMPLETED`, `FAILED`) | No |
 | `POST` | `/api/v1/transfers` | P2P transfer between two wallets | **Yes** (`Idempotency-Key`) |
 | `GET`  | `/api/v1/transactions` | Query transactions across/by wallet (`?phone=...`) | No |
 | `GET`  | `/api/v1/wallets/{phone}/transactions` | Query paginated transaction history for a wallet | No |
@@ -84,24 +93,45 @@ Idempotency-Key: <unique string, max 255 chars>
   "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA" }
 ```
 
-`gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network, and for this wallet: the request carries the wallet's phone as `merchant_reference` and the gateway must echo it back. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet; topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`). The response (201) is built from the customer's ledger entry:
+`gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Add-money is **asynchronous**: the request is validated and queued, and the answer is `202 Accepted` with a `Location` header and the request in status `PENDING`:
 
 ```json
-{ "transaction_id": "…", "wallet_id": "…", "phone": "01712345678", "added_amount": 50000, "balance": 50000,
-  "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA", "created_at": "…" }
+{ "request_id": "…", "status": "PENDING", "wallet_id": "…", "phone": "01712345678", "amount": 50000,
+  "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA", "attempts": 0,
+  "transaction_id": null, "balance": null, "error_code": null, "error_message": null,
+  "created_at": "…", "updated_at": "…" }
 ```
+
+Poll `GET /api/v1/wallets/add-money/{request_id}` until `status` is final. `COMPLETED` carries the `transaction_id` and the wallet `balance` right after the credit; `FAILED` carries `error_code` and `error_message`. A replay of the same `Idempotency-Key` and body returns the same request (with its current status), so it is safe to retry the POST itself.
+
+How it works:
+
+1. In one database transaction the API claims the `Idempotency-Key`, checks the amount limits, the wallet and the `gateway_ref`, and inserts a `PENDING` row into `add_money_requests`. That row is both the status record and the outbox.
+2. A dispatcher (every 500 ms) publishes each unpublished `PENDING` request to the RabbitMQ queue `wallet.add-money` (persistent message, publisher confirm) and marks it published. Because the message is sent from the database row, a crash between "accepted" and "queued" cannot lose a request. A `PENDING` request whose message is older than 10 minutes is published again as a safety net.
+3. A worker asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network, and for this wallet: the request carries the wallet's phone as `merchant_reference` and the gateway must echo it back. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet), and the request becomes `COMPLETED`. Topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`.
+4. The `gateway_ref` credits only once, however many messages or requests there are: a request is processed under its row lock, a request that is no longer `PENDING` is skipped, and `transactions.gateway_ref` is unique. A `gateway_ref` that is already credited or already queued is `409 DUPLICATE_GATEWAY_REF` at once; a `FAILED` request frees its `gateway_ref`.
+
+**Retries.** Only transient failures are retried: the gateway being unreachable, timing out or failing (`PAYMENT_GATEWAY_ERROR`), and a payment the gateway has not captured yet, such as 3-D Secure in progress (`PAYMENT_PENDING`). The failed attempt is counted and the request stays `PENDING` (with the last error visible) while it waits on a retry queue `wallet.add-money.retry.N`. That queue has the delay as its TTL and dead-letters back to the work queue, so the broker brings the message back without any consumer or sleeping thread, and the wait survives restarts. The delays are `miniwallet.messaging.add-money.retry-delays` (default `5s,30s,2m`: up to 4 attempts in all). When the attempts run out the request is `FAILED` with the last error code, `PAYMENT_GATEWAY_ERROR` or `PAYMENT_PENDING` (message ending in `gave up after N attempts`) and its id goes to the dead-letter queue `wallet.add-money.dlq`. A business rejection (declined, mismatch, not found, ...) is final at once and never retried. An unexpected worker error (a bug, a database error) is counted and retried the same way and ends `FAILED` with `INTERNAL_SERVER_ERROR` after the last attempt, so a request that always crashes the worker cannot cycle forever. If even that cannot be recorded (the database is down), the message is dead-lettered and the dispatcher republishes the still-`PENDING` request later. The worker calls the gateway with no database transaction open and locks the request row only to write the outcome; a message that comes back before the backoff of the last recorded attempt has elapsed (a redelivery after a crash) is parked again without counting an attempt.
 
 | Error | Status | When |
 |---|---|---|
 | `MISSING_IDEMPOTENCY_KEY` | 400 | No `Idempotency-Key` header |
 | `VALIDATION_ERROR` / `INVALID_PAYLOAD` | 400 | Missing or invalid `phone`, missing or non-integer `amount`, `gateway_ref` not a UUID, unknown `payment_method`. The message names the field, e.g. `Invalid value for field: gateway_ref` |
-| `INVALID_AMOUNT` | 400 | `amount` below the minimum or above the maximum in the `limits` table (default 100–2,500,000 poisha). Checked before the gateway is called, stored and replayed like other deterministic failures |
-| `PAYMENT_DECLINED` | 402 | Gateway reports the payment as declined or not yet captured |
+| `INVALID_AMOUNT` | 400 | `amount` below the minimum or above the maximum in the `limits` table (default 100–2,500,000 poisha). Checked when the request is accepted, stored and replayed like other deterministic failures |
 | `WALLET_NOT_FOUND` | 404 | No wallet with that phone |
-| `DUPLICATE_GATEWAY_REF` | 409 | The `gateway_ref` already credited a wallet |
+| `DUPLICATE_GATEWAY_REF` | 409 | The `gateway_ref` already credited a wallet or belongs to a request still waiting to be processed |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Same key, different request |
-| `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | 422 | Gateway doesn't know the payment / captured a different amount, currency, network or wallet |
-| `PAYMENT_GATEWAY_ERROR` | 502 | Gateway unreachable, timed out or failed. Not stored, so retry with the same key |
+| `SYSTEM_WALLET_NOT_ALLOWED` | 422 | The wallet is a system ledger account |
+| `ADD_MONEY_REQUEST_NOT_FOUND` | 404 | `GET` of a `request_id` that does not exist |
+
+Failures that need the gateway are not HTTP errors of the POST any more; they end the request as `FAILED` with this `error_code`:
+
+| `error_code` | When |
+|---|---|
+| `PAYMENT_DECLINED` | Gateway reports the payment as declined |
+| `PAYMENT_PENDING` | Gateway still reports the payment as not captured (for example 3-D Secure in progress) on every attempt |
+| `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | Gateway doesn't know the payment / captured a different amount, currency, network or wallet |
+| `PAYMENT_GATEWAY_ERROR` | Gateway unreachable, timed out or failed on every attempt |
 
 ### Transfers
 
@@ -123,7 +153,7 @@ Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", 
 
 ### Transaction history
 
-`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first, and carry `entry_id`, `transaction_id`, `wallet_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_wallet_id`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`.
+`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first: one wallet's list follows its ledger chain (`entry_no`), so `balance_after` always reads on from the entry below it; a list across wallets is ordered by `created_at`. `created_at` is when the entry was posted (taken once the wallet locks are held, so for an add-money after the gateway answered), not when the request started; `from` / `to` and the balance's `updated_at` use the same time. Entries carry `entry_id`, `transaction_id`, `wallet_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_wallet_id`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`.
 
 ### Mock payment gateway (WireMock)
 
@@ -131,14 +161,16 @@ Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", 
 
 | `gateway_ref` starts with | Gateway answer | API result |
 |---|---|---|
-| *(any other UUID)* | Captured for the requested amount | 201 |
-| `00000402-` | Declined: `INSUFFICIENT_FUNDS` | 402 `PAYMENT_DECLINED` |
-| `00000202-` | Pending 3-D Secure | 402 `PAYMENT_DECLINED` |
-| `00000404-` | 404 | 422 `PAYMENT_NOT_FOUND` |
-| `00000422-` | Captured for 100 poisha | 422 `PAYMENT_MISMATCH` |
-| `00000423-` | Captured for another wallet (`merchant_reference` differs) | 422 `PAYMENT_MISMATCH` |
-| `00000500-` | 500 | 502 `PAYMENT_GATEWAY_ERROR` |
-| `00000504-` | Answers after 10 s (app read timeout: 5 s) | 502 `PAYMENT_GATEWAY_ERROR` |
+| *(any other UUID)* | Captured for the requested amount | `COMPLETED` |
+| `00000402-` | Declined: `INSUFFICIENT_FUNDS` | `FAILED` `PAYMENT_DECLINED` |
+| `00000202-` | Pending 3-D Secure on every call | retried, then `FAILED` `PAYMENT_PENDING` |
+| `00000203-` | Pending 3-D Secure on the first two calls, then captured (one WireMock scenario shared by all such refs, reset with `POST /__admin/scenarios/reset`) | retried, then `COMPLETED` on the third attempt |
+| `00000404-` | 404 | `FAILED` `PAYMENT_NOT_FOUND` |
+| `00000422-` | Captured for 100 poisha | `FAILED` `PAYMENT_MISMATCH` |
+| `00000423-` | Captured for another wallet (`merchant_reference` differs) | `FAILED` `PAYMENT_MISMATCH` |
+| `00000500-` | 500 on every call | retried, then `FAILED` `PAYMENT_GATEWAY_ERROR` |
+| `00000503-` | 503 on the first two calls, then captured (the call counter is one WireMock scenario shared by all such refs: reset it with `POST /__admin/scenarios/reset`) | retried, then `COMPLETED` on the third attempt |
+| `00000504-` | Answers after 10 s (app read timeout: 5 s) | retried, then `FAILED` `PAYMENT_GATEWAY_ERROR` |
 
 For example, `00000402-7d4e-4b8a-9c21-5e6f7a8b9c0d` simulates a declined card. A random UUID starts with one of these prefixes with probability about 1 in 4 billion.
 
@@ -148,17 +180,19 @@ Requests with a missing or wrong `X-Api-Key` (`visa-sandbox-key` / `mastercard-s
 
 ## 5. Architectural Assumptions & Financial Invariants
 
-1. **Phone number is the external identity**: every API identifies a wallet by its phone number (any accepted format, normalized to `01XXXXXXXXX`), which is unique per wallet and mandatory, system accounts included (they use the unassigned `010…` prefix). A customer wallet can only be registered with an assigned operator prefix (`013`–`019`, enforced in the API and by a database check), so no customer can ever take a system number; lookups and transfers still accept any well-formed number. `wallet_id` (a UUIDv7) is what the ledger uses and is shown in responses next to the phone, but requests never take it. `transaction_id` is a UUIDv7 generated by the service. The client supplies `user_id` and `gateway_ref` as UUIDs, which the problem statement's examples (`u_1001`, `GW-20261105-9981`) do not. Non-UUID values are rejected with 400.
-1. **Monetary Precision**: All monetary values are strictly represented in integer **poisha** ($1\text{ BDT} = 100\text{ poisha}$). Floating-point types are strictly forbidden to eliminate rounding errors.
-2. **Transaction Bounds**: The minimum amount and the single-transaction maximum are read from the `limits` table (one row per transaction type, seeded by Liquibase with 100 poisha / 1 BDT and 2,500,000 poisha / 25,000 BDT). For a transfer the maximum applies to what the sender is charged in total, `amount + fee`, so the largest transfer is 2,499,500 poisha with the default 500-poisha fee. Change a row to change the limit; the database itself only requires amounts to be positive.
-3. **Non-Negative Balances**: A wallet balance can never drop below zero.
-   * **Double-entry ledger as source of truth**: wallets store no balance. Every money movement is a row in `transactions` (type, amount, and `gateway_ref` / `payment_method` for add-money) plus its immutable debit/credit legs in `ledger_entries` (each pointing to its transaction by `transaction_id`), and a wallet's balance is the `balance_after` of its latest leg (0 for a new wallet). Each wallet is an account of one class: `ASSET`, `EXPENSE`, `REVENUE`, `EQUITY` or `LIABILITY`. Customer wallets are `LIABILITY` (the platform owes the customer that money); Liquibase seeds four system accounts, all owned by the reserved system `user_id` `00000000-0000-7000-8000-000000000002` (no customer can use it) and each with a reserved phone in the unassigned `010` range: `REVENUE` transfer fees (`01000000001`), `ASSET` gateway clearing (`01000000003`), `EXPENSE` operating costs (`01000000005`) and `EQUITY` owner capital (`01000000006`). A customer registering one of these phones gets `409 DUPLICATE_PHONE`. Every account starts at balance 0 (no seeded transactions); no flow posts to the expense or equity accounts yet. ASSET and EXPENSE accounts grow on a debit, the other three on a credit.
+1. **Wallet type is explicit**: `POST /api/v1/wallets` takes `user_id`, `phone` and a required `type` (`ASSET`, `EXPENSE`, `REVENUE`, `EQUITY` or `LIABILITY`); there is no default, and a missing or unknown `type` is a `400`. Any user may create a wallet of any type for now (role-based permissions will come later). The only constraint is the phone: a valid Bangladeshi mobile number (any accepted format), and **one wallet per phone** (`409 DUPLICATE_PHONE` otherwise), the same for every type. `user_id` is free: no id is reserved, and the same `user_id` may own any number of wallets of any type, customer wallets included. A wallet of another type is not used by any flow: add-money and transfers accept customer wallets only (`422 SYSTEM_WALLET_NOT_ALLOWED`).
+2. **Phone number is the external identity**: every API identifies a wallet by its phone number (any accepted format, normalized to `01XXXXXXXXX`), which is unique per wallet and mandatory, system accounts included (the seeded ones use `010…` numbers). There is no operator-prefix restriction: any number of the form `01XXXXXXXXX` is valid, and uniqueness alone stops a customer taking a system account's number (`409 DUPLICATE_PHONE`). `wallet_id` (a UUIDv7) is what the ledger uses and is shown in responses next to the phone, but requests never take it. `transaction_id` is a UUIDv7 generated by the service. The client supplies `user_id` and `gateway_ref` as UUIDs, which the problem statement's examples (`u_1001`, `GW-20261105-9981`) do not. Non-UUID values are rejected with 400.
+3. **Monetary Precision**: All monetary values are strictly represented in integer **poisha** (1 BDT = 100 poisha). Floating-point types are strictly forbidden to eliminate rounding errors.
+4. **Transaction Bounds**: The minimum amount and the single-transaction maximum are read from the `limits` table (one row per transaction type, seeded by Liquibase with 100 poisha / 1 BDT and 2,500,000 poisha / 25,000 BDT). For a transfer the maximum applies to what the sender is charged in total, `amount + fee`, so the largest transfer is 2,499,500 poisha with the default 500-poisha fee. Change a row to change the limit; the database itself only requires amounts to be positive.
+5. **Non-Negative Balances**: A wallet balance can never drop below zero.
+   * **Double-entry ledger as source of truth**: wallets store no balance. Every money movement is a row in `transactions` (type, amount, and `gateway_ref` / `payment_method` for add-money) plus its immutable debit/credit legs in `ledger_entries` (each pointing to its transaction by `transaction_id`), and a wallet's balance is the `balance_after` of its latest leg (0 for a new wallet). Each wallet is an account of one class: `ASSET`, `EXPENSE`, `REVENUE`, `EQUITY` or `LIABILITY`. Customer wallets are `LIABILITY` (the platform owes the customer that money); Liquibase seeds two system accounts, both seeded under the owner `user_id` `00000000-0000-7000-8000-000000000002` (plain data, not reserved) and each with a seeded phone in the `010` range: `REVENUE` transfer fees (`01000000001`) and `ASSET` gateway clearing (`01000000003`). A customer registering one of these phones gets `409 DUPLICATE_PHONE`. Every account starts at balance 0 (no seeded transactions). `EXPENSE` and `EQUITY` wallets are not seeded; create them with `POST /wallets` if needed (no flow posts to them yet). ASSET and EXPENSE accounts grow on a debit, the other three on a credit.
    * **Transactions**: add-money = `DEBIT` gateway clearing + `CREDIT` customer (`GATEWAY_CLEARING` + `ADD_MONEY` legs); transfer = `DEBIT` sender (`TRANSFER_OUT` amount, `FEE_OUT` fee), `CREDIT` receiver (`TRANSFER_IN`), `CREDIT` revenue (`FEE_IN`). Customer balances plus revenue always equal the clearing asset, so the trial balance (debit-normal balances = credit-normal balances) holds. System accounts cannot send, receive or be topped up (`422 SYSTEM_WALLET_NOT_ALLOWED`).
    * **Enforced by PostgreSQL**: a deferred constraint trigger rejects, at commit, any transaction with fewer than two entries or whose debits differ from its credits; `gateway_ref` is unique, so a gateway payment credits once; transactions and entries are append-only (UPDATE/DELETE are rejected); and constraints guarantee each wallet's chain starts at 0, continues exactly from the previous balance, never forks or skips, never goes negative, uses the arithmetic of its account class, and that each leg type posts on its fixed side and account class.
-4. **Deadlock Prevention**: All multi-wallet operations lock rows in ascending order of wallet IDs (`lockInOrder`), preventing circular wait conditions and deadlocks.
-5. **Idempotency Enforcement**:
+6. **Deadlock Prevention**: All multi-wallet operations lock rows in ascending order of wallet IDs (`LedgerPoster.lockAndLoadChains`), preventing circular wait conditions and deadlocks.
+7. **Idempotency Enforcement**:
    * Requests bearing the same `Idempotency-Key` and payload return the cached response without duplicate execution.
    * Requests reusing an `Idempotency-Key` with an altered payload return `422 Unprocessable Entity` (`IDEMPOTENCY_KEY_REUSED`).
    * Missing the `Idempotency-Key` header on required endpoints returns `400 Bad Request`.
    * Claiming the key, doing the work and storing the outcome happen in one database transaction. A concurrent request with the same key waits for it and then replays the stored outcome, so there is exactly one execution.
-   * Deterministic failures (declined, not found, mismatch, duplicate `gateway_ref`) are stored and replayed. Transient gateway failures are not, so the client can retry with the same key.
+   * Deterministic failures are stored and replayed. For transfers that is every business rejection. For add-money it is the rejections found when the request is accepted (amount, wallet, duplicate `gateway_ref`); the idempotency key then points at the accepted request, whose own status (`COMPLETED` or `FAILED`) is what a replay shows, so a request that failed after retrying is not executed again under the same key.
+   * Transfers are still synchronous, and a transient failure is not stored there, so the client can retry with the same key.

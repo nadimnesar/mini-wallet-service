@@ -30,7 +30,7 @@ paths:
               schema: { $ref: '#/components/schemas/WalletResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '409':
-          description: DUPLICATE_WALLET or DUPLICATE_PHONE
+          description: DUPLICATE_PHONE (a wallet with this phone already exists)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -44,7 +44,7 @@ paths:
         - name: phone
           in: path
           required: true
-          schema: { type: string, description: 'Wallet phone number in any accepted format' }
+          schema: { type: string, example: '01712345678', description: 'Wallet phone number in any accepted format' }
       responses:
         '200':
           description: Wallet found
@@ -63,7 +63,7 @@ paths:
         - name: phone
           in: path
           required: true
-          schema: { type: string, description: 'Wallet phone number in any accepted format' }
+          schema: { type: string, example: '01712345678', description: 'Wallet phone number in any accepted format' }
       responses:
         '200':
           description: Balance of the wallet, from its latest ledger entry
@@ -75,7 +75,12 @@ paths:
 
   /api/v1/wallets/add-money:
     post:
-      summary: Add money from a card payment captured by the gateway
+      summary: Request to add money from a card payment (asynchronous)
+      description: >-
+        Validates the request and queues it; the card gateway is checked and the wallet credited afterwards by a worker.
+        Poll the Location URL for the outcome. A gateway outage or timeout is retried with backoff (default: after 5 s,
+        30 s and 2 min, so up to 4 attempts) before the request fails. Everything that needs no gateway (amount limits,
+        wallet, unused gateway_ref) is still rejected immediately with the errors below.
       operationId: addMoney
       tags: [Wallets]
       parameters:
@@ -86,30 +91,47 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/AddMoneyRequest' }
       responses:
-        '201':
-          description: Money added (also returned on an idempotent replay)
+        '202':
+          description: Request accepted, status PENDING (an idempotent replay returns the same request with its current status)
+          headers:
+            Location:
+              description: URL of the request's status
+              schema: { type: string, example: '/api/v1/wallets/add-money/0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b' }
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AddMoneyResponse' }
+              schema: { $ref: '#/components/schemas/AddMoneyStatusResponse' }
         '400': { $ref: '#/components/responses/Error' }
-        '402':
-          description: PAYMENT_DECLINED
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404': { $ref: '#/components/responses/Error' }
         '409':
-          description: DUPLICATE_GATEWAY_REF
+          description: DUPLICATE_GATEWAY_REF (already credited, or already queued by another request)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '422':
-          description: PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED (wallet is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
+          description: SYSTEM_WALLET_NOT_ALLOWED (wallet is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '502':
-          description: PAYMENT_GATEWAY_ERROR (retryable with the same key)
+
+  /api/v1/wallets/add-money/{request_id}:
+    get:
+      summary: Status of an add-money request
+      operationId: getAddMoneyRequest
+      tags: [Wallets]
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The request and its current status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddMoneyStatusResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404':
+          description: ADD_MONEY_REQUEST_NOT_FOUND
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -142,11 +164,11 @@ paths:
 
   /api/v1/wallets/{phone}/transactions:
     get:
-      summary: List a wallet's transactions, newest first
+      summary: List a wallet's transactions, newest first (in ledger order)
       operationId: listLedgerEntries
       tags: [Wallets]
       parameters:
-        - { name: phone, in: path, required: true, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: phone, in: path, required: true, schema: { type: string, example: '01712345678', description: Wallet phone number in any accepted format } }
         - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
@@ -167,7 +189,7 @@ paths:
       operationId: listTransactions
       tags: [Transactions]
       parameters:
-        - { name: phone, in: query, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: phone, in: query, schema: { type: string, example: '01712345678', description: Wallet phone number in any accepted format } }
         - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
@@ -201,6 +223,41 @@ paths:
               schema: { $ref: '#/components/schemas/TransactionDetailResponse' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /actuator/health/liveness:
+    get:
+      summary: Liveness probe (the process is up)
+      operationId: getLiveness
+      tags: [Health]
+      responses:
+        '200':
+          description: Up
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+        '503':
+          description: Down
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
+  /actuator/health/readiness:
+    get:
+      summary: Readiness probe (the database answers; RabbitMQ is deliberately not checked, add-money is still accepted while the broker is down)
+      operationId: getReadiness
+      tags: [Health]
+      description: Used as the docker compose healthcheck of the app. No other actuator endpoint is exposed, and no component details are returned.
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
 components:
   parameters:
     IdempotencyKey:
@@ -208,7 +265,7 @@ components:
       in: header
       required: true
       description: Same key and body replays the stored result; same key with a different body returns 422.
-      schema: { type: string, minLength: 1, maxLength: 255 }
+      schema: { type: string, minLength: 1, maxLength: 255, example: 'add-money-0001' }
 
   responses:
     Error:
@@ -218,6 +275,12 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [UP, DOWN] }
+
     Amount:
       type: integer
       format: int64
@@ -238,26 +301,31 @@ components:
 
     CreateWalletRequest:
       type: object
-      required: [user_id, phone]
+      required: [user_id, phone, type]
       properties:
-        user_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid, example: '0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b', description: 'Owner. Any UUID: nothing is reserved and one user may own any number of wallets of any type. The phone is the only uniqueness rule' }
         phone:
           type: string
-          pattern: '^(?:\+?880|0)?(1[3-9]\d{8})$'
-          description: Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX, with an assigned operator prefix (013-019); stored as 01XXXXXXXXX
+          pattern: '^(?:\+?880|0)?(1\d{9})$'
+          description: Any valid Bangladeshi mobile number, the same rule for every type. Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; stored as 01XXXXXXXXX; unique per wallet (409 DUPLICATE_PHONE)
           example: '+8801712345678'
+        type:
+          type: string
+          enum: [ASSET, EXPENSE, REVENUE, EQUITY, LIABILITY]
+          description: Account class, required (no default). Any user may create any type for now (role-based permissions will come later). LIABILITY is a customer wallet; no add-money or transfer flow can use the other types
+          example: LIABILITY
 
     WalletResponse:
       type: object
       properties:
         wallet_id: { type: string, format: uuid }
-        user_id: { type: string, format: uuid, description: Shared system user id (00000000-0000-7000-8000-000000000002) for system accounts }
+        user_id: { type: string, format: uuid, description: Owner of the wallet }
         phone: { type: string, example: '01712345678', description: The wallet's external identity; unique per wallet }
         currency: { type: string, enum: [BDT] }
         type:
           type: string
           enum: [ASSET, EXPENSE, REVENUE, EQUITY, LIABILITY]
-          description: Account class. Customer wallets are LIABILITY; the seeded system accounts are REVENUE (transfer fees), ASSET (gateway clearing), EXPENSE and EQUITY (owner capital)
+          description: Account class. Customer wallets are LIABILITY; the seeded system accounts are REVENUE (transfer fees) and ASSET (gateway clearing)
         created_at: { type: string, format: date-time }
 
     BalanceResponse:
@@ -278,20 +346,35 @@ components:
         gateway_ref:
           type: string
           format: uuid
-          description: Payment reference from the card gateway; credits only once
+          example: '0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b'
+          description: Payment reference from the card gateway; credits only once. The mock gateway picks the outcome from a reserved prefix (see README); this example is captured
         payment_method: { $ref: '#/components/schemas/PaymentMethod' }
 
-    AddMoneyResponse:
+    AddMoneyStatusResponse:
       type: object
       properties:
-        transaction_id: { type: string, format: uuid }
+        request_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED]
+          description: PENDING until the worker finishes (including while it waits for a retry); COMPLETED and FAILED are final
         wallet_id: { type: string, format: uuid }
         phone: { type: string, example: '01712345678' }
-        added_amount: { type: integer, format: int64 }
-        balance: { type: integer, format: int64 }
+        amount: { type: integer, format: int64 }
         gateway_ref: { type: string, format: uuid }
         payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+        attempts: { type: integer, description: Processing attempts made so far }
+        transaction_id: { type: [string, 'null'], format: uuid, description: Set once COMPLETED }
+        balance: { type: [integer, 'null'], format: int64, description: Wallet balance right after the credit; set once COMPLETED }
+        error_code:
+          type: [string, 'null']
+          description: >-
+            Set once FAILED: PAYMENT_DECLINED, PAYMENT_PENDING (still not captured after every attempt), PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED, DUPLICATE_GATEWAY_REF
+            or INVALID_AMOUNT, or PAYMENT_GATEWAY_ERROR once the retries ran out. On a PENDING request that is waiting for a retry it is
+            the last failure
+        error_message: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     TransferRequest:
       type: object
@@ -330,7 +413,7 @@ components:
         balance_after: { type: integer, format: int64 }
         counterparty_wallet_id: { type: string, format: uuid }
         counterparty_phone: { type: string, example: '01712345678' }
-        created_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time, description: When the entry was posted (after the wallet locks were taken), not when the request started }
 
     TransactionDetailResponse:
       type: object
