@@ -5,7 +5,7 @@ duplicated and never lost.
 
 ```bash
 docker compose up --build   # build and start everything; the API is on http://localhost:8080
-./mvnw test                 # ~140 tests against real Postgres / RabbitMQ (Testcontainers)
+./mvnw test                 # ~166 tests against real Postgres / RabbitMQ (Testcontainers)
 ```
 
 The stack also uses these ports, so keep them free: PostgreSQL `5432`, RabbitMQ `5672` (management UI on `15672`) and
@@ -272,7 +272,7 @@ flowchart LR
 | **Total**      |         | **DEBIT**  | **10500** |
 | **Total**      |         | **CREDIT** | **10500** |
 
-### The database is the last line of defence
+### The database is the last line of defense
 
 Service code is careful, but the schema does not trust it. Liquibase changesets `002` and `003` enforce:
 
@@ -331,6 +331,7 @@ sequenceDiagram
 
 Because everybody takes locks in one global order, a circular wait cannot form, so there are no deadlocks. Because
 balances are read after the lock, an overdraft race cannot happen: the second transfer sees the first one's result.
+
 ---
 
 ## Idempotency
@@ -435,6 +436,32 @@ flowchart LR
     P -->|" yes, count attempt "| R1{{"retry.N queue<br/>TTL 5s, 30s, 2m, 10m, 30m"}}
     R1 -->|" dead-letters back "| WQ
     P -->|" no "| FD(["FAILED + id to wallet.add-money.dlq"])
+```
+
+---
+
+## Load Testing
+
+The service was benchmarked under heavy concurrent traffic using **k6** against the full Docker Compose stack on an Intel Core i3-1115G4 with 8 GB RAM.
+
+### Benchmark summary
+
+| Workload / Endpoint                         | Concurrency / Target |        Sustained TPS         | Avg Latency | p95 Latency | Success Rate |
+|---------------------------------------------|:--------------------:|:----------------------------:|:-----------:|:-----------:|:------------:|
+| **Balance Inquiries (`GET /balance`)**      |       500 VUs        | **~3,686 TPS** (peak ~4,100) |   82.7 ms   |  248.3 ms   |   **100%**   |
+| **Target Arrival Rate (`GET /balance`)**    |  Up to 6,000 req/s   |     **~3,054–4,800 TPS**     |   64.9 ms   |  232.1 ms   |   **100%**   |
+| **Mixed Production Workload**               |       300 VUs        |        **~1,305 TPS**        |  117.4 ms   |  288.5 ms   |   **100%**   |
+| **Wallet Creation (`POST /wallets`)**       |        50 VUs        |         **~875 TPS**         |   29.8 ms   |   79.0 ms   |   **100%**   |
+| **Add-Money Ingestion (`POST /add-money`)** |        50 VUs        |         **~470 TPS**         |   56.4 ms   |  162.0 ms   |   **100%**   |
+| **Add-Money Background Processing**         |      Background      |       **~90–100 TPS**        |    Async    |    Async    |   **100%**   |
+| **P2P Transfers (`POST /transfers`)**       |       120 VUs        |         **~196 TPS**         |  350.9 ms   |  663.6 ms   |   **100%**   |
+
+### Running the load tests
+
+All test scripts are located in [`load-test/`](load-test/):
+
+```bash
+./load-test/run-benchmarks.sh
 ```
 
 ---
