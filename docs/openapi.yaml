@@ -284,7 +284,7 @@ components:
         type:
           type: string
           enum: [ASSET, EXPENSE, REVENUE, EQUITY, LIABILITY]
-          description: Account class. Customer wallets are LIABILITY; the seeded system accounts are REVENUE (transfer fees), ASSET (gateway clearing), EXPENSE and EQUITY (owner capital)
+          description: Account class. Customer wallets are LIABILITY; the seeded system accounts are REVENUE (transfer fees) and ASSET (gateway clearing)
         created_at: { type: string, format: date-time }
 
     BalanceResponse:
