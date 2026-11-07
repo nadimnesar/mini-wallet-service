@@ -5,7 +5,6 @@ import com.pathaopay.miniwallet.common.constant.DbConstants.IdempotencyKeys;
 import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
-import com.pathaopay.miniwallet.common.constant.DbConstants;
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,8 +26,7 @@ import java.util.UUID;
  * Base for tests that run the full application (on a random HTTP port) against real
  * infrastructure started by Testcontainers (Docker must be running):
  * <ul>
- *   <li>PostgreSQL, used by both the write and read pools, so read-only routing is exercised
- *   without a replica;</li>
+ *   <li>PostgreSQL;</li>
  *   <li>the WireMock payment gateway, loaded with the same stubs as docker compose
  *   ({@code docker/wiremock}).</li>
  * </ul>
@@ -53,11 +51,9 @@ public abstract class AbstractIntegrationTest {
 
     @DynamicPropertySource
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
-        for (String prefix : List.of(DbConstants.WRITE_PROPERTIES_PREFIX, DbConstants.READ_PROPERTIES_PREFIX)) {
-            registry.add(prefix + ".jdbc-url", POSTGRES::getJdbcUrl);
-            registry.add(prefix + ".username", POSTGRES::getUsername);
-            registry.add(prefix + ".password", POSTGRES::getPassword);
-        }
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add(PaymentGatewayConstants.PROPERTIES_PREFIX + ".base-url", AbstractIntegrationTest::paymentGatewayUrl);
         // The TIMEOUT stub answers after 10s; a short read timeout keeps that test fast.
         registry.add(PaymentGatewayConstants.PROPERTIES_PREFIX + ".read-timeout", () -> "1s");

@@ -406,7 +406,6 @@ public class DefaultTransactionService implements TransactionService {
                 e.createdAt());
     }
 
-    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public TransactionPageResponse getTransactions(
@@ -436,7 +435,6 @@ public class DefaultTransactionService implements TransactionService {
         return new TransactionPageResponse(items, page, pageSize, totalItems, totalPages);
     }
 
-    /** Served by the read replica; entries may lag the primary by the replication delay. */
     @Override
     @Transactional(readOnly = true)
     public TransactionDetailResponse getTransactionDetails(UUID transactionId) {

@@ -1,49 +1,22 @@
 name: mini-wallet
 
-x-postgres-common: &postgres-common
-  image: bitnami/postgresql:latest
-  healthcheck:
-    test: [ "CMD-SHELL", "pg_isready -U miniwallet -d miniwallet" ]
-    interval: 5s
-    timeout: 5s
-    retries: 10
-
 services:
-  postgres-primary:
-    <<: *postgres-common
-    container_name: miniwallet-postgres-primary
+  postgres:
+    image: postgres:18-alpine
+    container_name: miniwallet-postgres
     environment:
-      POSTGRESQL_DATABASE: miniwallet
-      POSTGRESQL_USERNAME: miniwallet
-      POSTGRESQL_PASSWORD: miniwallet
-      POSTGRESQL_REPLICATION_MODE: master
-      POSTGRESQL_REPLICATION_USER: replicator
-      POSTGRESQL_REPLICATION_PASSWORD: replicator
+      POSTGRES_DB: miniwallet
+      POSTGRES_USER: miniwallet
+      POSTGRES_PASSWORD: miniwallet
     ports:
       - "5432:5432"
     volumes:
-      - postgres-primary-data:/bitnami/postgresql
-
-  # Read node: hot standby cloned from the primary; rejects writes.
-  postgres-replica:
-    <<: *postgres-common
-    container_name: miniwallet-postgres-replica
-    environment:
-      POSTGRESQL_DATABASE: miniwallet
-      POSTGRESQL_USERNAME: miniwallet
-      POSTGRESQL_PASSWORD: miniwallet
-      POSTGRESQL_REPLICATION_MODE: slave
-      POSTGRESQL_REPLICATION_USER: replicator
-      POSTGRESQL_REPLICATION_PASSWORD: replicator
-      POSTGRESQL_MASTER_HOST: postgres-primary
-      POSTGRESQL_MASTER_PORT_NUMBER: 5432
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres-replica-data:/bitnami/postgresql
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U miniwallet -d miniwallet" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # Mock payment gateway for Visa and Mastercard (WireMock). Stubs: docker/wiremock.
   payment-gateway:
@@ -55,28 +28,24 @@ services:
     volumes:
       - ./docker/wiremock:/home/wiremock:ro
 
-  # Spring Boot application: writes go to the primary, readOnly transactions to the replica.
+  # Spring Boot application: talks to PostgreSQL and the payment gateway.
   app:
     build: .
     image: mini-wallet-service:latest
     container_name: miniwallet-app
     environment:
-      DB_WRITE_URL: jdbc:postgresql://postgres-primary:5432/miniwallet
-      DB_READ_URL: jdbc:postgresql://postgres-replica:5432/miniwallet
+      DB_URL: jdbc:postgresql://postgres:5432/miniwallet
       DB_USERNAME: miniwallet
       DB_PASSWORD: miniwallet
       PAYMENT_GATEWAY_URL: http://payment-gateway:8080
     ports:
       - "8080:8080"
     depends_on:
-      postgres-primary:
-        condition: service_healthy
-      postgres-replica:
+      postgres:
         condition: service_healthy
       payment-gateway:
         condition: service_started
     restart: unless-stopped
 
 volumes:
-  postgres-primary-data:
-  postgres-replica-data:
+  postgres-data:

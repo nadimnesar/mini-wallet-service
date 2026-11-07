@@ -5,10 +5,10 @@ Guidance for Claude Code when working in this repository.
 ## Project at a glance
 
 - Maven multi-module Spring Boot 4 / Java 25 service: `common`, `models`, `repository`, `clients`, `services`, `middleware` (the only runnable module).
-- `docker compose up` (add `--build` after code changes) runs the whole stack: the PostgreSQL primary (write, `:5432`), the streaming read replica (`:5433`), and the app (`:8080`).
-- Module roles: `clients` holds every external-system client: the database (`DataSourceConfig`, Liquibase changelogs) and the payment gateway. `repository` holds all repositories: interfaces plus `jdbc/` implementations.
+- `docker compose up` (add `--build` after code changes) runs the whole stack: a single PostgreSQL instance (`:5432`), and the app (`:8080`).
+- Module roles: `clients` holds every external-system client: the database (Liquibase changelogs) and the payment gateway. `repository` holds all repositories: interfaces plus `jdbc/` implementations.
 - `common` layout: `constant/`: `AppConstants` (headers, money, phone, validation), `ErrorConstants` (nested `ErrorCode` and `ErrorMessage`), `PaymentGatewayConstants`, and `DbConstants` (datasource settings plus one nested class per table with `TABLE` and every column name). All SQL in repositories and tests builds table/column names from `DbConstants`; add new tables/columns there when the schema changes. No constants in controllers. `util/` (PhoneNumberUtils, UuidGenerator), `exception/` with the base `MiniWalletException` and one subpackage per domain (`wallet`, `payment`, `transaction`, `idempotency`). Put new exceptions in the matching subpackage.
-- Read/write routing lives in `clients` (`DataSourceConfig`): `@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary.
+- One PostgreSQL instance and one Spring Boot `DataSource` (`spring.datasource.*`); there is no read/write routing or replica.
 - Build: `./mvnw -DskipTests package`. Tests: `./mvnw test`.
 - Lombok (declared once in the root pom): `@RequiredArgsConstructor` for constructor injection, `@Slf4j` for loggers, `@Getter` for plain getters, `@NoArgsConstructor(access = AccessLevel.PRIVATE)` for constant/utility classes. Use records (not `@Data`/`@Value`) for DTOs and models. Keep a hand-written constructor only when it does more than assign fields.
 
@@ -80,7 +80,7 @@ Only commit when the user asks. Never commit to `master` without the user's go-a
   | `chore` | tooling, repo housekeeping, compose/infra config |
   | `revert` | reverting an earlier commit |
 - **scope**: the Maven module touched (`common`, `models`, `repository`, `clients`, `services`, `middleware`), or `docker`, `readme`, `deps` or `repo`. Omit the scope only when a change truly spans everything.
-- **body**: required when the *why* isn't obvious from the summary. Mention trade-offs and caveats (e.g. replica lag).
+- **body**: required when the *why* isn't obvious from the summary. Mention trade-offs and caveats.
 - **no AI attribution**: never add `Co-Authored-By: Claude ...` (or any other AI/tool co-author) trailer, or "Generated with Claude Code" lines, to commit messages or PR descriptions. Commits are authored solely by the repository owner.
 - **breaking changes**: add `!` after the scope (`feat(clients)!: ...`) and a `BREAKING CHANGE:` footer.
 
@@ -96,7 +96,7 @@ Only commit when the user asks. Never commit to `master` without the user's go-a
 
 ```
 feat(clients): add read/write datasource routing
-chore(docker): add postgres primary and read replica
+chore(docker): add postgres service
 build(docker): containerize app and run full stack via compose
 fix(middleware): correct GlobalExceptionHandler package
 docs(readme): document database topology

@@ -31,19 +31,11 @@ To start PostgreSQL and the application with a single command:
 docker compose up
 ```
 
-#### Database topology (read/write split)
+#### Database
 
-`docker compose up` starts two PostgreSQL nodes from the free `bitnami/postgresql:latest` image (currently PostgreSQL 18) with streaming replication, configured purely through environment variables:
-
-| Service | Role | Host port | Notes |
-|---------|------|-----------|-------|
-| `postgres-primary` | Write node | `5432` | Accepts reads and writes (`POSTGRESQL_REPLICATION_MODE=master`) |
-| `postgres-replica` | Read node | `5433` | Hot standby (`POSTGRESQL_REPLICATION_MODE=slave`); rejects writes |
-
-The `clients` module (`DataSourceConfig`) exposes one `DataSource` that routes on the transaction's read-only flag:
-`@Transactional(readOnly = true)` goes to the replica, and everything else goes to the primary. Replication is asynchronous, so reads that must see a write that just happened (for example, a balance check before a debit) must run in a read-write transaction.
-Connection settings are under `miniwallet.datasource.write.*` / `miniwallet.datasource.read.*` in `application.properties`. You can override them with `DB_WRITE_URL`, `DB_READ_URL`, `DB_USERNAME` and `DB_PASSWORD`.
-If you recreate the primary's data, also reset the replica: `docker compose down -v`. Do the same when `latest` moves to a new PostgreSQL major version, because the old data files can't be opened by the new version.
+`docker compose up` starts a single PostgreSQL 18 instance (`postgres`, host port `5432`) next to the app and the payment-gateway mock.
+Connection settings are under `spring.datasource.*` in `application.properties`; override them with `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`.
+After editing an applied Liquibase changeset, or when the PostgreSQL major version changes, reset the data with `docker compose down -v`.
 
 Alternatively, to build and run the executable module locally:
 ```bash
@@ -131,7 +123,7 @@ Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", 
 
 ### Transaction history
 
-`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first, and carry `entry_id`, `transaction_id`, `wallet_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_wallet_id`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`. These reads are served by the replica, so a just-written entry can appear after the replication delay.
+`GET /api/v1/wallets/{phone}/transactions` and `GET /api/v1/transactions?phone=…` (wallet optional) take `type` (`ADD_MONEY`, `GATEWAY_CLEARING`, `TRANSFER_OUT`, `TRANSFER_IN`, `FEE_OUT`, `FEE_IN`), `from` / `to` (ISO-8601 instants, inclusive), `page` (from 1) and `page_size` (default 20, max 100). Results are ledger entries, newest first, and carry `entry_id`, `transaction_id`, `wallet_id`, `phone`, `type`, `direction` (`DEBIT`/`CREDIT`), `amount`, `balance_after`, `counterparty_wallet_id`, `counterparty_phone` and `created_at`, plus `total_items` / `total_pages`. `GET /api/v1/transactions/{transaction_id}` returns the transaction (`type` `ADD_MONEY` or `TRANSFER`, `amount`, `gateway_ref` and `payment_method` for add-money) with all of its `entries` (`404 TRANSACTION_NOT_FOUND`). `from` after `to` is `400 INVALID_DATE_RANGE`; an unknown wallet is `404 WALLET_NOT_FOUND`.
 
 ### Mock payment gateway (WireMock)
 

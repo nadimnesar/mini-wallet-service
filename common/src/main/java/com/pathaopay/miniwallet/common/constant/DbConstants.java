@@ -3,14 +3,10 @@ package com.pathaopay.miniwallet.common.constant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-/** Database-only constants: datasource settings, table names and column names. */
+/** Database-only constants: table names and column names. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class DbConstants {
 
-    public static final String WRITE_PROPERTIES_PREFIX = "miniwallet.datasource.write";
-    public static final String READ_PROPERTIES_PREFIX = "miniwallet.datasource.read";
-    public static final String WRITE_BEAN = "writeDataSource";
-    public static final String READ_BEAN = "readDataSource";
 
     /** Table {@code wallets}. */
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
