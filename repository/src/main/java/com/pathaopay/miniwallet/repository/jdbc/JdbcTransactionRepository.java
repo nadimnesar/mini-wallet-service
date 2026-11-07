@@ -75,12 +75,8 @@ public class JdbcTransactionRepository implements TransactionRepository {
                     + " WHERE " + LedgerEntries.TRANSACTION_ID + " = :transactionId"
                     + " AND " + LedgerEntries.TYPE + " = :type";
 
-    // One wallet: its ledger chain (entry_no) is the true order. All wallets: entry_no is per wallet, so the posting time
-    // decides (created_at is clock_timestamp() taken under the wallet locks), with the UUIDv7 id as tie-breaker.
-    private static final String NEWEST_FIRST_OF_WALLET = " ORDER BY e." + LedgerEntries.ENTRY_NO + " DESC";
-
-    private static final String NEWEST_FIRST =
-            " ORDER BY e." + LedgerEntries.CREATED_AT + " DESC, e." + LedgerEntries.ID + " DESC";
+    // A wallet's ledger chain (entry_no) is the true order of its history.
+    private static final String NEWEST_FIRST = " ORDER BY e." + LedgerEntries.ENTRY_NO + " DESC";
 
     private static final String TRANSACTION_COLUMNS = String.join(", ",
             Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
@@ -203,8 +199,7 @@ public class JdbcTransactionRepository implements TransactionRepository {
     @Override
     public List<LedgerEntryView> search(TransactionFilter filter, int limit, long offset) {
         Where where = Where.of(filter);
-        String order = filter.walletId() != null ? NEWEST_FIRST_OF_WALLET : NEWEST_FIRST;
-        return jdbcClient.sql(VIEW_SELECT + where.sql + order + " LIMIT :limit OFFSET :offset")
+        return jdbcClient.sql(VIEW_SELECT + where.sql + NEWEST_FIRST + " LIMIT :limit OFFSET :offset")
                 .params(where.params)
                 .param("limit", limit)
                 .param("offset", offset)
@@ -226,10 +221,8 @@ public class JdbcTransactionRepository implements TransactionRepository {
         static Where of(TransactionFilter filter) {
             List<String> conditions = new ArrayList<>();
             Map<String, Object> params = new HashMap<>();
-            if (filter.walletId() != null) {
-                conditions.add("e." + LedgerEntries.WALLET_ID + " = :walletId");
-                params.put("walletId", filter.walletId());
-            }
+            conditions.add("e." + LedgerEntries.WALLET_ID + " = :walletId");
+            params.put("walletId", filter.walletId());
             if (filter.type() != null) {
                 conditions.add("e." + LedgerEntries.TYPE + " = :type");
                 params.put("type", filter.type().name());
@@ -242,7 +235,7 @@ public class JdbcTransactionRepository implements TransactionRepository {
                 conditions.add("e." + LedgerEntries.CREATED_AT + " <= :to");
                 params.put("to", OffsetDateTime.ofInstant(filter.to(), ZoneOffset.UTC));
             }
-            return new Where(conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions), params);
+            return new Where(" WHERE " + String.join(" AND ", conditions), params);
         }
     }
 }

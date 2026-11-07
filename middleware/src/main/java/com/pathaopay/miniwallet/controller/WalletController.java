@@ -62,8 +62,7 @@ public class WalletController {
     public ResponseEntity<TransactionPageResponse> getLedgerEntries(
             @PathVariable("phone") String phone,
             @Valid TransactionHistoryParams params) {
-        TransactionHistoryParams forWallet = params.forPhone(phone);
-        return ResponseEntity.ok(transactionService.getTransactions(forWallet.phone(), forWallet.type(),
-                forWallet.from(), forWallet.to(), forWallet.page(), forWallet.pageSize()));
+        return ResponseEntity.ok(transactionService.getTransactions(phone, params.type(),
+                params.from(), params.to(), params.page(), params.pageSize()));
     }
 }

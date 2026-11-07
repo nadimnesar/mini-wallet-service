@@ -181,12 +181,9 @@ public class DefaultTransactionService implements TransactionService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new InvalidDateRangeException();
         }
-        UUID walletId = null;
-        if (phone != null) {
-            String normalized = PhoneNumberUtils.normalize(phone);
-            walletId = walletRepository.findByPhone(normalized)
-                    .orElseThrow(() -> new WalletNotFoundException(normalized)).id();
-        }
+        String normalized = PhoneNumberUtils.normalize(phone);
+        UUID walletId = walletRepository.findByPhone(normalized)
+                .orElseThrow(() -> new WalletNotFoundException(normalized)).id();
         TransactionFilter filter = new TransactionFilter(walletId, type, from, to);
         long totalItems = transactionRepository.count(filter);
         List<TransactionItemResponse> items = transactionRepository

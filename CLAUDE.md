@@ -51,7 +51,7 @@ Guidance for Claude Code when working in this repository.
   - `service.rules`: `TransactionRules` (limits, customer-wallet and duplicate-gateway_ref checks);
   - `service.mapper`: `TransactionResponses` (response building and replay rebuilders).
   Put new shared logic in the matching package, not back into `DefaultTransactionService`.
-- The two history endpoints share `TransactionHistoryParams` (middleware): filters and paging with their validation. A parameter that cannot be converted (bad enum or date) is `INVALID_ARGUMENT` via `GlobalExceptionHandler`.
+- The wallet history endpoint takes its filters and paging from `TransactionHistoryParams` (middleware), with their validation. History is always for one wallet (no cross-wallet listing); paging is offset/limit for now, keyset paging may replace it later. A parameter that cannot be converted (bad enum or date) is `INVALID_ARGUMENT` via `GlobalExceptionHandler`.
 
 ## Asynchronous add-money (RabbitMQ)
 

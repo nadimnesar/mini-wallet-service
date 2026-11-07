@@ -9,11 +9,10 @@ import org.springframework.web.bind.annotation.BindParam;
 import java.time.Instant;
 
 /**
- * Query parameters shared by the two transaction-history endpoints (all optional): the filters and the page.
- * {@code phone} is the wallet to look at; the wallet endpoint takes it from its path instead (see {@link #forPhone}).
+ * Query parameters of the transaction-history endpoint (all optional): the filters and the page. The wallet is
+ * the path variable.
  */
 public record TransactionHistoryParams(
-        String phone,
         EntryType type,
 
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -36,10 +35,5 @@ public record TransactionHistoryParams(
     public TransactionHistoryParams {
         page = page == null ? DEFAULT_PAGE : page;
         pageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
-    }
-
-    /** The same parameters for the wallet with this phone (a path variable must not be overridden by a query value). */
-    public TransactionHistoryParams forPhone(String phone) {
-        return new TransactionHistoryParams(phone, type, from, to, page, pageSize);
     }
 }
