@@ -43,7 +43,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Payment gateway mock
 
-- `PaymentGatewayClient` (clients) is implemented over HTTP by `HttpPaymentGatewayClient`, which forces HTTP/1.1 (WireMock resets h2c upgrades). Locally and in tests the gateway is WireMock with stubs in `docker/wiremock`. Scenarios are picked by a reserved prefix of the `gateway_ref` UUID, e.g. `00000402-…` for declined (see README). Extend those stubs instead of mocking the client in tests.
+- `PaymentGatewayClient` (clients) is implemented over HTTP by `HttpPaymentGatewayClient`, which forces HTTP/1.1 (WireMock resets h2c upgrades). Locally and in tests the gateway is WireMock with stubs in `docker/wiremock`. Scenarios are picked by a reserved prefix of the `gateway_ref` UUID, e.g. `00000402-…` for declined (see README). The verify request carries the wallet phone as `merchant_reference`, and the gateway must echo it (`00000423-…` simulates another wallet). Extend those stubs instead of mocking the client in tests.
 
 ## Database schema (Liquibase)
 

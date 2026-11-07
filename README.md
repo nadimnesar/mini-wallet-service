@@ -92,7 +92,7 @@ Idempotency-Key: <unique string, max 255 chars>
   "gateway_ref": "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d", "payment_method": "VISA" }
 ```
 
-`gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet; topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`). The response (201) is built from the customer's ledger entry:
+`gateway_ref` is the gateway's payment id, a UUID. `payment_method` is `VISA` or `MASTERCARD`. Before crediting, the service asks that network's gateway (`POST /{visa|mastercard}/v1/payments/verify`, authenticated with the network's API key) whether the payment was captured for exactly this amount, currency and network, and for this wallet: the request carries the wallet's phone as `merchant_reference` and the gateway must echo it back. The credit is one `ADD_MONEY` transaction with two entries (`DEBIT` the gateway clearing asset account, `CREDIT` the customer wallet; topping up a system account is `422 SYSTEM_WALLET_NOT_ALLOWED`). The response (201) is built from the customer's ledger entry:
 
 ```json
 { "transaction_id": "…", "wallet_id": "…", "phone": "01712345678", "added_amount": 50000, "balance": 50000,
@@ -107,7 +107,7 @@ Idempotency-Key: <unique string, max 255 chars>
 | `WALLET_NOT_FOUND` | 404 | No wallet with that phone |
 | `DUPLICATE_GATEWAY_REF` | 409 | The `gateway_ref` already credited a wallet |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Same key, different request |
-| `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | 422 | Gateway doesn't know the payment / captured a different amount, currency or network |
+| `PAYMENT_NOT_FOUND` / `PAYMENT_MISMATCH` | 422 | Gateway doesn't know the payment / captured a different amount, currency, network or wallet |
 | `PAYMENT_GATEWAY_ERROR` | 502 | Gateway unreachable, timed out or failed. Not stored, so retry with the same key |
 
 ### Transfers
@@ -142,6 +142,7 @@ Response 201: `{ "transfer_id", "from_wallet_id", "from_phone", "to_wallet_id", 
 | `00000202-` | Pending 3-D Secure | 402 `PAYMENT_DECLINED` |
 | `00000404-` | 404 | 422 `PAYMENT_NOT_FOUND` |
 | `00000422-` | Captured for 100 poisha | 422 `PAYMENT_MISMATCH` |
+| `00000423-` | Captured for another wallet (`merchant_reference` differs) | 422 `PAYMENT_MISMATCH` |
 | `00000500-` | 500 | 502 `PAYMENT_GATEWAY_ERROR` |
 | `00000504-` | Answers after 10 s (app read timeout: 5 s) | 502 `PAYMENT_GATEWAY_ERROR` |
 
