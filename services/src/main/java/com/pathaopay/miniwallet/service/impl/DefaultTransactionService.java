@@ -157,8 +157,8 @@ public class DefaultTransactionService implements TransactionService {
         }
 
         PaymentVerification payment = paymentGatewayClient.verify(
-                request.paymentMethod(), request.gatewayRef(), request.amount());
-        ensureCapturedAsRequested(payment, request);
+                request.paymentMethod(), request.gatewayRef(), phone, request.amount());
+        ensureCapturedAsRequested(payment, request, phone);
 
         UUID clearingId = AppConstants.GATEWAY_CLEARING_WALLET_ID;
         Map<UUID, Chain> chains = lockAndLoadChains(Set.of(walletId, clearingId));
@@ -256,21 +256,23 @@ public class DefaultTransactionService implements TransactionService {
         }
     }
 
-    private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request) {
+    private static void ensureCapturedAsRequested(PaymentVerification payment, AddMoneyRequest request,
+                                                  String phone) {
         if (payment.status() != PaymentVerification.Status.CAPTURED) {
             throw new PaymentDeclinedException(ErrorMessage.PAYMENT_DECLINED.formatted(
                     request.paymentMethod(), request.gatewayRef(), payment.status(), payment.declineReason()));
         }
-        String requested = describe(request.amount(), AppConstants.CURRENCY_CODE, request.paymentMethod().name());
-        String confirmed = describe(payment.amount(), payment.currency(), String.valueOf(payment.cardNetwork()));
+        String requested = describe(request.amount(), AppConstants.CURRENCY_CODE, request.paymentMethod().name(), phone);
+        String confirmed = describe(payment.amount(), payment.currency(), String.valueOf(payment.cardNetwork()),
+                payment.merchantReference());
         if (!requested.equals(confirmed) || !request.gatewayRef().equals(payment.gatewayRef())) {
             throw new PaymentMismatchException(ErrorMessage.PAYMENT_MISMATCH.formatted(
                     request.gatewayRef(), requested, confirmed));
         }
     }
 
-    private static String describe(long amount, String currency, String network) {
-        return amount + " " + currency + " via " + network;
+    private static String describe(long amount, String currency, String network, String merchantReference) {
+        return amount + " " + currency + " via " + network + " for wallet " + merchantReference;
     }
 
     private <T> Outcome<T> replay(String idempotencyKey, String requestHash, Function<UUID, T> rebuild) {

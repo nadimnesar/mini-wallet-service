@@ -50,7 +50,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     @Override
-    public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount) {
+    public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, String merchantReference, long amount) {
         String network = method.name().toLowerCase(Locale.ROOT);
         VerifyResponse response;
         log.debug("Verifying payment with {} gateway: gatewayRef={} amount={}", method, gatewayRef, amount);
@@ -60,7 +60,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
                     .header(PaymentGatewayConstants.API_KEY_HEADER, properties.network(method).apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(new VerifyRequest(gatewayRef, amount, AppConstants.CURRENCY_CODE))
+                    .body(new VerifyRequest(gatewayRef, merchantReference, amount, AppConstants.CURRENCY_CODE))
                     .retrieve()
                     .onStatus(status -> status.isSameCodeAs(HttpStatus.NOT_FOUND), (request, res) -> {
                         log.info("{} gateway has no payment: gatewayRef={}", method, gatewayRef);
@@ -79,11 +79,13 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
         log.info("{} gateway verified payment: gatewayRef={} status={} declineReason={}",
                 method, gatewayRef, response.status(), response.declineReason());
         return new PaymentVerification(response.gatewayRef(), response.status(), response.amount(),
-                response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason());
+                response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason(),
+                response.merchantReference());
     }
 
     private record VerifyRequest(
             @JsonProperty("gateway_ref") UUID gatewayRef,
+            @JsonProperty("merchant_reference") String merchantReference,
             @JsonProperty("amount") long amount,
             @JsonProperty("currency") String currency) {
     }
@@ -95,6 +97,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
             @JsonProperty("currency") String currency,
             @JsonProperty("card_network") PaymentMethod cardNetwork,
             @JsonProperty("authorization_code") String authorizationCode,
-            @JsonProperty("decline_reason") String declineReason) {
+            @JsonProperty("decline_reason") String declineReason,
+            @JsonProperty("merchant_reference") String merchantReference) {
     }
 }
