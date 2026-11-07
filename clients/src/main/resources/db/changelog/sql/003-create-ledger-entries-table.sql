@@ -54,7 +54,10 @@ CREATE FUNCTION ledger_assert_transaction_balanced() RETURNS trigger
     LANGUAGE plpgsql AS
 $$
 DECLARE
-    tx_id UUID;
+    tx_id     UUID;
+    tx_type   VARCHAR(16);
+    tx_amount BIGINT;
+    well_formed BOOLEAN;
 BEGIN
     IF TG_TABLE_NAME = 'transactions' THEN
         tx_id := NEW.id;
@@ -65,6 +68,27 @@ BEGIN
         FROM ledger_entries
         WHERE transaction_id = tx_id) THEN
         RAISE EXCEPTION 'transaction % needs at least two entries and debits must equal credits', tx_id
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT type, amount INTO tx_type, tx_amount FROM transactions WHERE id = tx_id;
+    SELECT CASE tx_type
+               WHEN 'ADD_MONEY' THEN
+                   COUNT(*) = 2
+                       AND COUNT(*) FILTER (WHERE type = 'GATEWAY_CLEARING' AND amount = tx_amount) = 1
+                       AND COUNT(*) FILTER (WHERE type = 'ADD_MONEY' AND amount = tx_amount) = 1
+               WHEN 'TRANSFER' THEN
+                   COUNT(*) = 4
+                       AND COUNT(*) FILTER (WHERE type = 'TRANSFER_OUT' AND amount = tx_amount) = 1
+                       AND COUNT(*) FILTER (WHERE type = 'TRANSFER_IN' AND amount = tx_amount) = 1
+                       AND COUNT(*) FILTER (WHERE type = 'FEE_OUT') = 1
+                       AND COUNT(*) FILTER (WHERE type = 'FEE_IN') = 1
+               ELSE FALSE
+               END
+    INTO well_formed
+    FROM ledger_entries
+    WHERE transaction_id = tx_id;
+    IF NOT well_formed THEN
+        RAISE EXCEPTION 'transaction % has entries that do not match its type and amount', tx_id
             USING ERRCODE = '23514';
     END IF;
     RETURN NULL;

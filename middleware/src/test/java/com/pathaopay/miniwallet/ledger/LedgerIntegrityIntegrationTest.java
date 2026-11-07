@@ -57,9 +57,11 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         addMoney(alice, 2, 20000, 50000, "GW-2");
         journal(
                 debit(alice, "LIABILITY", 3, "TRANSFER_OUT", 30000, 70000, 40000, bob, "T-1"),
-                credit(bob, "LIABILITY", 1, "TRANSFER_IN", 30000, 0, 30000, alice, "T-1"));
+                debit(alice, "LIABILITY", 4, "FEE_OUT", 500, 40000, 39500, REVENUE, "T-1"),
+                credit(bob, "LIABILITY", 1, "TRANSFER_IN", 30000, 0, 30000, alice, "T-1"),
+                credit(REVENUE, "REVENUE", 1, "FEE_IN", 500, 0, 500, alice, "T-1"));
 
-        assertEquals(40000, apiBalance(alice));
+        assertEquals(39500, apiBalance(alice));
         assertEquals(30000, apiBalance(bob));
         assertEquals(70000, apiBalance(CLEARING));
         assertEquals(70000, balance(CLEARING));
@@ -186,6 +188,43 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         assertRejected(() -> insertTransaction("TRANSFER", 5000, UUID.randomUUID(), null));
         assertRejected(() -> insertTransaction("TRANSFER", 5000, null, "VISA"));
         assertRejected(() -> insertTransaction("REFUND", 5000, null, null));
+    }
+
+    @Test
+    void transactionAmountMustMatchItsLegs() {
+        assertRejected(() -> post("ADD_MONEY", 40000,
+                credit(alice, "LIABILITY", 1, "ADD_MONEY", 50000, 0, 50000, CLEARING, "GW-1", "VISA"),
+                debit(CLEARING, "ASSET", 1, "GATEWAY_CLEARING", 50000, 0, 50000, alice, "GW-1", "VISA")));
+        assertEquals(0, entryCount(alice));
+    }
+
+    @Test
+    void legTypesMustFitTheTransactionType() {
+        assertRejected(() -> post("ADD_MONEY", 5000,
+                debit(alice, "LIABILITY", 1, "TRANSFER_OUT", 5000, 0, 0, bob, "GW-1", "VISA"),
+                credit(bob, "LIABILITY", 1, "TRANSFER_IN", 5000, 0, 5000, alice, "GW-1", "VISA")));
+        addMoney(alice, 1, 50000, 0, "GW-2");
+        assertRejected(() -> journal(
+                debit(alice, "LIABILITY", 2, "TRANSFER_OUT", 1000, 50000, 49000, bob, "T-1"),
+                credit(bob, "LIABILITY", 1, "TRANSFER_IN", 1000, 0, 1000, alice, "T-1")));
+    }
+
+    @Test
+    void aCommittedTransactionCannotGetMoreLegsLater() {
+        addMoney(alice, 1, 50000, 0, "GW-1");
+        UUID transactionId = jdbcClient.sql("SELECT transaction_id FROM " + LedgerEntries.TABLE
+                + " WHERE wallet_id = :w").param("w", alice).query(UUID.class).single();
+
+        assertRejected(() -> jdbcClient.sql("INSERT INTO " + LedgerEntries.TABLE + " ("
+                        + String.join(", ", LedgerEntries.ID, LedgerEntries.WALLET_ID, LedgerEntries.WALLET_TYPE,
+                        LedgerEntries.ENTRY_NO, LedgerEntries.TYPE, LedgerEntries.DIRECTION, LedgerEntries.AMOUNT,
+                        LedgerEntries.BALANCE_BEFORE, LedgerEntries.BALANCE_AFTER,
+                        LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID)
+                        + ") VALUES (:i1, :a, 'LIABILITY', 2, 'TRANSFER_IN', 'CREDIT', 100, 50000, 49900, :b, :tx),"
+                        + " (:i2, :b, 'LIABILITY', 1, 'TRANSFER_OUT', 'DEBIT', 100, 0, 0, :a, :tx)")
+                .param("i1", UUID.randomUUID()).param("i2", UUID.randomUUID())
+                .param("a", alice).param("b", bob).param("tx", transactionId).update());
+        assertEquals(1, entryCount(alice));
     }
 
     @Test
@@ -335,15 +374,19 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
      * balance check sees the whole transaction. The transaction kind is derived from the legs' types.
      */
     private void journal(Leg... legs) {
+        post(legs[0].paymentMethod() != null ? "ADD_MONEY" : "TRANSFER", legs[0].amount(), legs);
+    }
+
+    /** Like {@link #journal} with the transaction's type and amount given explicitly, to post malformed shapes. */
+    private void post(String kind, long transactionAmount, Leg... legs) {
         List<String> rows = new ArrayList<>();
         for (int i = 0; i < legs.length; i++) {
             rows.add("(:id%d, :w%d, :wt%d, :n%d, :t%d, :d%d, :a%d, :b%d, :f%d, :c%d, :tx)".formatted(
                     i, i, i, i, i, i, i, i, i, i));
         }
         Leg first = legs[0];
-        boolean addMoney = first.paymentMethod() != null;
+        boolean addMoney = kind.equals("ADD_MONEY");
         UUID transactionId = UUID.nameUUIDFromBytes(first.reference().getBytes(StandardCharsets.UTF_8));
-        String kind = addMoney ? "ADD_MONEY" : "TRANSFER";
         JdbcClient.StatementSpec statement = jdbcClient.sql("WITH tx AS (INSERT INTO " + Transactions.TABLE + " ("
                 + String.join(", ", Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
                 Transactions.PAYMENT_METHOD) + ") VALUES (:tx, '" + kind + "', :txAmount, "
@@ -354,7 +397,7 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
                 LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID)
                 + ") VALUES " + String.join(", ", rows))
                 .param("tx", transactionId)
-                .param("txAmount", first.amount())
+                .param("txAmount", transactionAmount)
                 .param("txMethod", first.paymentMethod(), Types.VARCHAR);
         for (int i = 0; i < legs.length; i++) {
             Leg leg = legs[i];
