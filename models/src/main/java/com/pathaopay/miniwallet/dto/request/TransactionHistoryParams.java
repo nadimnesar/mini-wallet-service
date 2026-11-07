@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.controller;
+package com.pathaopay.miniwallet.dto.request;
 
 import com.pathaopay.miniwallet.model.enums.EntryType;
 import jakarta.validation.constraints.Max;
