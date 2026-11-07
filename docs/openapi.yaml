@@ -239,7 +239,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Same key and body replays the stored result; same key with a different body returns 422.
+      description: Same key and body replays the stored result; same key with a different body returns 422. A key identifies one attempt: a stored business rejection (e.g. INSUFFICIENT_BALANCE) is replayed for that key, so retry with a new key after the cause is fixed.
       schema: { type: string, minLength: 1, maxLength: 255, example: 'add-money-0001' }
 
   responses:
