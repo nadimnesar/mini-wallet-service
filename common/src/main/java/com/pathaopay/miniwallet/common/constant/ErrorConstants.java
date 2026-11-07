@@ -24,6 +24,7 @@ public final class ErrorConstants {
         public static final String DUPLICATE_PHONE = "DUPLICATE_PHONE";
         public static final String DUPLICATE_GATEWAY_REF = "DUPLICATE_GATEWAY_REF";
         public static final String PAYMENT_DECLINED = "PAYMENT_DECLINED";
+        public static final String PAYMENT_PENDING = "PAYMENT_PENDING";
         public static final String PAYMENT_NOT_FOUND = "PAYMENT_NOT_FOUND";
         public static final String PAYMENT_MISMATCH = "PAYMENT_MISMATCH";
         public static final String PAYMENT_GATEWAY_ERROR = "PAYMENT_GATEWAY_ERROR";
@@ -76,6 +77,8 @@ public final class ErrorConstants {
                 AppConstants.IDEMPOTENCY_KEY_HEADER + " has already been used with a different request";
         /** Format with network, gateway_ref, status and decline reason. */
         public static final String PAYMENT_DECLINED = "%s payment %s was not captured (status: %s, reason: %s)";
+        /** Format with network, gateway_ref and the gateway's reason. */
+        public static final String PAYMENT_PENDING = "%s payment %s has not been captured yet (%s)";
         /** Format with network and gateway_ref. */
         public static final String PAYMENT_NOT_FOUND = "%s gateway has no payment with gateway_ref %s";
         /** Format with gateway_ref, requested and confirmed details. */
