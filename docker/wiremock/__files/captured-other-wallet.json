@@ -1,0 +1,10 @@
+{
+  "gateway_ref": "{{jsonPath request.body '$.gateway_ref'}}",
+  "status": "CAPTURED",
+  "amount": {{jsonPath request.body '$.amount'}},
+  "currency": "{{jsonPath request.body '$.currency'}}",
+  "merchant_reference": "01999999999",
+  "card_network": "{{upper request.pathSegments.[0]}}",
+  "authorization_code": "{{randomValue length=6 type='ALPHANUMERIC' uppercase=true}}",
+  "captured_at": "{{now}}"
+}
