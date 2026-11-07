@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.client;
 
 import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
+import com.pathaopay.miniwallet.model.PaymentVerification;
 import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 
 import java.util.UUID;

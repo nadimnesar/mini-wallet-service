@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.client;
+package com.pathaopay.miniwallet.model;
 
 import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 

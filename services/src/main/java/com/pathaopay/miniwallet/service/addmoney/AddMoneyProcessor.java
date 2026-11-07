@@ -2,7 +2,6 @@ package com.pathaopay.miniwallet.service.addmoney;
 
 import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
-import com.pathaopay.miniwallet.client.PaymentVerification;
 import com.pathaopay.miniwallet.client.config.properties.AddMoneyMessagingProperties;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
@@ -16,6 +15,7 @@ import com.pathaopay.miniwallet.common.util.UuidGenerator;
 import com.pathaopay.miniwallet.model.AddMoneyRequestRecord;
 import com.pathaopay.miniwallet.model.LedgerEntry;
 import com.pathaopay.miniwallet.model.LedgerTransaction;
+import com.pathaopay.miniwallet.model.PaymentVerification;
 import com.pathaopay.miniwallet.model.enums.AddMoneyStatus;
 import com.pathaopay.miniwallet.model.enums.EntryType;
 import com.pathaopay.miniwallet.model.enums.TransactionType;

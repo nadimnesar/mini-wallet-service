@@ -2,13 +2,13 @@ package com.pathaopay.miniwallet.client.impl;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.client.PaymentGatewayClient;
-import com.pathaopay.miniwallet.client.PaymentVerification;
 import com.pathaopay.miniwallet.client.config.properties.PaymentGatewayProperties;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorMessage;
 import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
+import com.pathaopay.miniwallet.model.PaymentVerification;
 import com.pathaopay.miniwallet.model.enums.PaymentMethod;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
