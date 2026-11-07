@@ -1,4 +1,4 @@
-package com.pathaopay.miniwallet.service.impl;
+package com.pathaopay.miniwallet.service.addmoney;
 
 import com.pathaopay.miniwallet.client.AddMoneyQueueClient;
 import com.pathaopay.miniwallet.client.messaging.AddMoneyMessagingProperties;
