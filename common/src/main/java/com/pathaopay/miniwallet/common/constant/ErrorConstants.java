@@ -64,7 +64,6 @@ public final class ErrorConstants {
         /** Format with the maximum amount in poisha and in BDT. */
         public static final String AMOUNT_ABOVE_MAX = "amount must be at most %d poisha (%s BDT)";
         /** Format with the fee, the single-transaction limit and the resulting maximum amount, each in poisha and BDT. */
-        public static final String AMOUNT_PLUS_FEE_ABOVE_MAX = "amount plus the transfer fee of %d poisha (%s BDT) must be at most %d poisha (%s BDT), so amount must be at most %d poisha (%s BDT)";
         public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
         /** Format with the wallet phone and its account type. */
         public static final String SYSTEM_WALLET_NOT_ALLOWED =

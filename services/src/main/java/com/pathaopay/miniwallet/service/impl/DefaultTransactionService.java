@@ -85,7 +85,7 @@ public class DefaultTransactionService implements TransactionService {
                 request.amount().toString(), request.gatewayRef().toString(), request.paymentMethod().name());
 
         return idempotentExecutor.execute(idempotencyKey, ADD_MONEY_OPERATION, requestHash, () -> {
-            rules.requireWithinLimit(TransactionType.ADD_MONEY, request.amount(), 0);
+            rules.requireWithinLimit(TransactionType.ADD_MONEY, request.amount());
             Wallet wallet = rules.requireCustomerWallet(phone);
             // Cheap early exit; the unique indexes on gateway_ref are the real guard.
             if (transactionRepository.existsByGatewayRef(request.gatewayRef())) {
@@ -142,7 +142,7 @@ public class DefaultTransactionService implements TransactionService {
     private TransferResponse moveMoney(String from, String to, long amount, String note) {
         long fee = feeRepository.findAmount(TransactionType.TRANSFER)
                 .orElseThrow(() -> new IllegalStateException("No transfer fee configured in the fees table"));
-        rules.requireWithinLimit(TransactionType.TRANSFER, amount, fee);
+        rules.requireWithinLimit(TransactionType.TRANSFER, amount);
         if (from.equals(to)) {
             throw new SameWalletTransferException(ErrorMessage.SAME_WALLET_TRANSFER);
         }

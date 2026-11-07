@@ -269,7 +269,7 @@ components:
     Amount:
       type: integer
       format: int64
-      description: Poisha. The minimum and the single-transaction maximum come from the limits table (default 100 and 2500000); a transfer's amount plus its fee must not exceed the maximum. Outside them the error is INVALID_AMOUNT (400).
+      description: Poisha. The minimum and the single-transaction maximum come from the limits table (default 100 and 2500000); for a transfer it applies to the amount, the fee is charged on top. Outside them the error is INVALID_AMOUNT (400).
 
     PaymentMethod:
       type: string

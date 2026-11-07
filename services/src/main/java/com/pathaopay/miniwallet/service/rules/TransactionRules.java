@@ -25,24 +25,17 @@ public class TransactionRules {
     private final WalletRepository walletRepository;
     private final LimitRepository limitRepository;
 
-    /**
-     * Checks {@code amount} against the limits table: it must be at least the minimum, and what the customer is
-     * charged in total ({@code amount + fee}) must not exceed the single-transaction maximum. The sum is never
-     * computed: for an amount near {@code Long.MAX_VALUE} it would overflow and pass the check.
-     */
-    public void requireWithinLimit(TransactionType type, long amount, long fee) {
+    /** Checks {@code amount} against the limits table: at least the minimum and at most the single-transaction maximum. */
+    public void requireWithinLimit(TransactionType type, long amount) {
         TransactionLimit limit = limitRepository.find(type)
                 .orElseThrow(() -> new IllegalStateException("No limit configured in the limits table for " + type));
         if (amount < limit.minAmount()) {
             throw new InvalidAmountException(ErrorMessage.AMOUNT_BELOW_MIN.formatted(
                     limit.minAmount(), bdt(limit.minAmount())));
         }
-        long maxAmount = limit.maxAmount() - fee;
-        if (amount > maxAmount) {
-            throw new InvalidAmountException(fee == 0
-                    ? ErrorMessage.AMOUNT_ABOVE_MAX.formatted(limit.maxAmount(), bdt(limit.maxAmount()))
-                    : ErrorMessage.AMOUNT_PLUS_FEE_ABOVE_MAX.formatted(fee, bdt(fee),
-                    limit.maxAmount(), bdt(limit.maxAmount()), maxAmount, bdt(maxAmount)));
+        if (amount > limit.maxAmount()) {
+            throw new InvalidAmountException(ErrorMessage.AMOUNT_ABOVE_MAX.formatted(
+                    limit.maxAmount(), bdt(limit.maxAmount())));
         }
     }
 
