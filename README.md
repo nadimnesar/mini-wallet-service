@@ -5,12 +5,33 @@ duplicated and never lost.
 
 ```bash
 docker compose up              # start everything; the API is on http://localhost:8080
-./mvnw test                    # ~166 tests against real Postgres / RabbitMQ (Testcontainers)
+./mvnw test                    # ~180 tests against real Postgres / RabbitMQ (Testcontainers)
 ./load-test/run-benchmarks.sh  # run the k6 benchmark suite against the running service
 ```
 
 The stack also uses these ports, so keep them free: PostgreSQL `5432`, RabbitMQ `5672` (management UI on `15672`) and
 the payment-gateway mock `8089`.
+
+## Contents
+
+- [Features](#features)
+- [Technology and why](#technology-and-why)
+- [What makes this solution different](#what-makes-this-solution-different)
+- [API reference](#api-reference)
+- [Architecture](#architecture)
+    - [Modules](#modules)
+    - [High Level Design](#high-level-design)
+    - [Database entity diagram](#database-entity-diagram)
+- [Money safety: the ledger](#money-safety-the-ledger)
+    - [Double entry, balance derived from the chain](#double-entry-balance-derived-from-the-chain)
+    - [What a transfer writes](#what-a-transfer-writes)
+    - [The database is the last line of defense](#the-database-is-the-last-line-of-defense)
+- [Concurrency: no deadlocks, no overdrafts](#concurrency-no-deadlocks-no-overdrafts)
+- [Idempotency](#idempotency)
+- [Asynchronous Add-Money](#asynchronous-add-money)
+- [Load Testing Benchmark](#load-testing-benchmark)
+- [Assumptions and deliberate deviations](#assumptions-and-deliberate-deviations)
+- [What I could not make because of time constraints](#what-i-could-not-make-because-of-time-constraints)
 
 ---
 
@@ -61,7 +82,7 @@ the payment-gateway mock `8089`.
 | Idempotency by "check, then insert"                      | Key claim, work and stored outcome happen in **one DB transaction**. Concurrent requests with the same key queue up, so exactly one of them executes.                                                                                                                                                         |
 | Add-money calls the gateway inside the request           | **Outbox + RabbitMQ listener** with TTL-queue retries, a DLQ and publisher confirms. No dual write, and no DB lock is held across a network call.                                                                                                                                                             |
 | Mocks for external systems                               | Tests run against **real Postgres, real RabbitMQ and a WireMock gateway** that plays out failure scenarios (declined, pending payment, 503s, timeouts).                                                                                                                                                       |
-| Fee, limits and rules hard-coded                         | Fees and limits are **rows in tables** (`fees`, `limits`), seeded by Liquibase.                                                                                                                                                                                                                               |
+| Fees, limits and rules hard-coded                        | Fees and limits are **rows in tables** (`fees`, `limits`), seeded by Liquibase.                                                                                                                                                                                                                               |
 
 ---
 
@@ -98,6 +119,7 @@ Every failure uses the **same error format**:
 | `VALIDATION_ERROR` / `INVALID_PAYLOAD` / `INVALID_ARGUMENT`                                           | 400  | Bad body, field or parameter; the message names the field                                |
 | `MISSING_IDEMPOTENCY_KEY`                                                                             | 400  | Header absent                                                                            |
 | `INVALID_AMOUNT`                                                                                      | 400  | Outside the `limits` table range (default 100 to 2,500,000 poisha)                       |
+| `INVALID_PHONE_NUMBER`                                                                                | 400  | Not a valid Bangladeshi mobile number                                                    |
 | `INVALID_DATE_RANGE`                                                                                  | 400  | History `from` after `to`                                                                |
 | `WALLET_NOT_FOUND`, `TRANSACTION_NOT_FOUND`, `ADD_MONEY_REQUEST_NOT_FOUND`                            | 404  | Unknown resource                                                                         |
 | `DUPLICATE_PHONE` (duplicate wallet), `DUPLICATE_GATEWAY_REF`                                         | 409  | Uniqueness conflicts                                                                     |
@@ -400,9 +422,9 @@ sequenceDiagram
     API ->> DB: INSERT add_money_requests (PENDING = outbox row)
     API -->> C: 202 Accepted + request_id
     loop every 500 ms
-        D ->> DB: claim unpublished PENDING rows
-        D ->> MQ: publish (persistent, publisher confirm)
-        D ->> DB: mark published_at
+        D ->> DB: short tx: claim unpublished PENDING rows (stamp published_at)
+        D ->> MQ: publish (persistent, publisher confirm), no tx open
+        Note over D, DB: rows that could not be published are released
     end
     MQ ->> L: deliver request id
     L ->> G: verify payment (NO transaction open)
@@ -415,16 +437,15 @@ sequenceDiagram
 **Why it is safe**
 
 - **No dual write.** The message is published from the database row (transactional outbox), not from inside the
-  accepting transaction. A crash between "accepted" and "queued" loses nothing; a `PENDING` request whose message is
-  older than 10 minutes is republished as a safety net.
+  accepting transaction. A crash between "accepted" and "queued" loses nothing; a `PENDING` request whose message was
+  claimed more than 10 minutes ago is republished as a safety net (one waiting on a retry queue only after 10 minutes
+  plus the longest retry delay).
 - **At-least-once delivery, exactly-once credit.** Duplicate deliveries are harmless: the listener locks the request
-  row,
-  skips anything not `PENDING`, and `transactions.gateway_ref` is unique as the last backstop.
+  row, skips anything not `PENDING`, and `transactions.gateway_ref` is unique as the last backstop.
 - **The gateway must prove it.** The verify call carries the wallet's phone as `merchant_reference`; the gateway must
   echo it, and amount, currency and network must match. A payment captured for someone else is `PAYMENT_MISMATCH`.
 - **Limits are checked once, at acceptance.** The customer has paid by the time the listener runs, so a limit change
-  must
-  not fail a paid request.
+  must not fail a paid request.
 
 **Retry Mechanism**
 
@@ -468,7 +489,7 @@ differs from the examples in the problem statement, and why:
 |----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Wallets addressed by `wallet_id` (`w_8f3a...`)           | Addressed by **phone number**                                                                                                                                                                                                                          | `wallet_id` is an internal system identifier. External parties can easily refer to a wallet by its phone number.                                               |
 | "One user has one wallet", 409 on duplicate              | **One wallet per phone**, `409 DUPLICATE_PHONE`; a `user_id` may own several wallets                                                                                                                                                                   | A system user may need to create multiple system wallets. Once role-based wallet creation is enabled, customers can be limited to a single `LIABILITY` wallet. |
-| `user_id: "u_1001"`, `gateway_ref: "GW-2026..."`         | Both are **UUIDs** (non-UUID is `400`)                                                                                                                                                                                                                 | UUIDv7 guarantees uniqueness, so I could spend the time on the other major parts.                                                                              |
+| `user_id: "u_1001"`, `gateway_ref: "GW-2026..."`         | Both are **UUIDs** (non-UUID is `400`)                                                                                                                                                                                                                 | UUIDv7 guarantees uniqueness, so I could spend my time on the other major parts.                                                                              |
 | Create-wallet response includes `balance`                | Balance is a separate endpoint                                                                                                                                                                                                                         | There is no stored balance; it is derived from the ledger, so wallet details and balance are different reads.                                                  |
 | Add-money responds with the credited result              | Asynchronous: `202`, then poll                                                                                                                                                                                                                         | A real gateway verification is slow and can fail transiently.                                                                                                  |
 | Add-money path `/wallets/{wallet_id}/add-money`          | `/wallets/add-money` with `phone` in the body                                                                                                                                                                                                          | Follows from phone identity.                                                                                                                                   |
