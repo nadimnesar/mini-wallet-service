@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** End-to-end P2P transfers over HTTP against real PostgreSQL: atomicity, locking and idempotency. */
 class TransferIntegrationTest extends AbstractIntegrationTest {
@@ -71,6 +72,7 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(walletService.getWallet(bob).walletId().toString(), response.body().get("to_wallet_id").asString());
         assertEquals(10000, response.body().get("amount").asLong());
         assertEquals(500, response.body().get("fee").asLong());
+        assertEquals("Lunch", response.body().get("note").asString());
         assertEquals("COMPLETED", response.body().get("status").asString());
         assertEquals(39500, balance(alice));
         assertEquals(10000, balance(bob));
@@ -90,6 +92,15 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
         assertEquals(first.body(), replay.body());
         assertEquals(39500, balance(alice));
         assertEquals(10000, balance(bob));
+        assertEquals("Lunch", replay.body().get("note").asString());
+    }
+
+    @Test
+    void noteIsOptionalAndMustNotBeEmptyOrTooLong() {
+        assertTrue(transfer("key-1", alice, bob, 10000, null).body().get("note").isNull());
+        assertError(transfer("key-2", alice, bob, 10000, ""), 400, "VALIDATION_ERROR");
+        assertError(transfer("key-3", alice, bob, 10000, "x".repeat(256)), 400, "VALIDATION_ERROR");
+        assertEquals(201, transfer("key-4", alice, bob, 10000, "x".repeat(255)).status());
     }
 
     @Test

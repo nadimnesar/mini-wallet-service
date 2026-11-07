@@ -48,7 +48,7 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
         bob = walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01711000002")).phone();
         transactionService.addMoney(new AddMoneyRequest(alice, 50000L, UUID.randomUUID(), PaymentMethod.VISA), "k1");
         transferId = UUID.fromString(transactionService
-                .transfer(new TransferRequest(alice, bob, 10000L, null), "k2").transferId().toString());
+                .transfer(new TransferRequest(alice, bob, 10000L, "Lunch"), "k2").transferId().toString());
         transactionService.transfer(new TransferRequest(alice, bob, 5000L, null), "k3");
     }
 
@@ -147,6 +147,7 @@ class TransactionHistoryIntegrationTest extends AbstractIntegrationTest {
 
         assertEquals("TRANSFER", detail.get("type").asString());
         assertEquals(10000, detail.get("amount").asLong());
+        assertEquals("Lunch", detail.get("note").asString());
         assertEquals(4, detail.get("entries").size());
         assertEquals(List.of("FEE_IN", "FEE_OUT", "TRANSFER_IN", "TRANSFER_OUT"), sortedEntryTypes(detail));
     }
