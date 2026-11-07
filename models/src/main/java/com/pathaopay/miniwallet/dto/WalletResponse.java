@@ -2,6 +2,7 @@ package com.pathaopay.miniwallet.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.model.Currency;
+import com.pathaopay.miniwallet.model.WalletType;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -18,8 +19,8 @@ public record WalletResponse(
         @JsonProperty("currency")
         Currency currency,
 
-        @JsonProperty("balance")
-        long balance,
+        @JsonProperty("type")
+        WalletType type,
 
         @JsonProperty("created_at")
         Instant createdAt

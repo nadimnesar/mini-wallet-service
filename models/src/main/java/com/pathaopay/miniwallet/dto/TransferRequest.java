@@ -4,20 +4,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pathaopay.miniwallet.common.constant.AppConstants;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-
-import java.util.UUID;
 
 /** Body of {@code POST /api/v1/transfers}. */
 public record TransferRequest(
-        @NotNull(message = AppConstants.FROM_WALLET_ID_REQUIRED)
-        @JsonProperty("from_wallet_id")
-        UUID fromWalletId,
+        @NotBlank(message = AppConstants.FROM_PHONE_REQUIRED)
+        @Pattern(regexp = AppConstants.PHONE_ACCEPTED_PATTERN, message = AppConstants.PHONE_FORMAT)
+        @JsonProperty("from_phone")
+        String fromPhone,
 
-        @NotNull(message = AppConstants.TO_WALLET_ID_REQUIRED)
-        @JsonProperty("to_wallet_id")
-        UUID toWalletId,
+        @NotBlank(message = AppConstants.TO_PHONE_REQUIRED)
+        @Pattern(regexp = AppConstants.PHONE_ACCEPTED_PATTERN, message = AppConstants.PHONE_FORMAT)
+        @JsonProperty("to_phone")
+        String toPhone,
 
         @NotNull(message = AppConstants.AMOUNT_REQUIRED)
         @Min(value = AppConstants.MIN_AMOUNT_POISHA, message = AppConstants.AMOUNT_MIN)

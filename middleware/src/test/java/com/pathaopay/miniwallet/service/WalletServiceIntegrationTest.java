@@ -1,6 +1,7 @@
 package com.pathaopay.miniwallet.service;
 
-import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.AppConstants;
+import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicatePhoneException;
 import com.pathaopay.miniwallet.common.exception.wallet.DuplicateWalletException;
@@ -43,8 +44,23 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
         assertEquals(user("u_1001"), response.userId());
         assertEquals("01711000001", response.phone());
         assertEquals(Currency.BDT, response.currency());
-        assertEquals(0, response.balance());
-        assertEquals("01711000001", storedPhone(response.walletId()));
+        assertEquals(0, walletService.getBalance(response.phone()).balance());
+        assertEquals("01711000001", storedPhone(user("u_1001")));
+        assertEquals(AppConstants.SYSTEM_USER_ID.equals(response.userId()), false);
+    }
+
+    @Test
+    void rejectsPhonesOfSystemAccounts() {
+        assertThrows(DuplicatePhoneException.class,
+                () -> walletService.createWallet(new CreateWalletRequest(user("u_1001"), AppConstants.REVENUE_WALLET_PHONE)));
+        assertEquals(0, walletCount());
+    }
+
+    @Test
+    void rejectsTheUserIdReservedForSystemAccounts() {
+        assertThrows(DuplicateWalletException.class,
+                () -> walletService.createWallet(new CreateWalletRequest(AppConstants.SYSTEM_USER_ID, "01711000001")));
+        assertEquals(0, walletCount());
     }
 
     @Test
@@ -87,31 +103,40 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
     void getsExistingWallet() {
         WalletResponse created = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "1711000001"));
 
-        assertEquals(created, walletService.getWallet(created.walletId()));
+        assertEquals(created, walletService.getWallet(created.phone()));
+        assertEquals(created, walletService.getWallet("+880" + created.phone().substring(1)));
     }
 
     @Test
     void walletBalanceIsTheLatestLedgerBalance() {
         WalletResponse wallet = walletService.createWallet(new CreateWalletRequest(user("u_1001"), "01711000001"));
-        UUID id = wallet.walletId();
-        jdbcClient.sql("INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
-                        WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
-                        WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
-                        WalletTransactions.BALANCE_AFTER, WalletTransactions.REFERENCE_ID,
-                        WalletTransactions.PAYMENT_METHOD) + ")" + """
-                        VALUES (:t1, :w, 1, 'ADD_MONEY', 50000, 0, 50000, gen_random_uuid(), 'VISA'),
-                               (:t2, :w, 2, 'ADD_MONEY', 20000, 50000, 70000, gen_random_uuid(), 'MASTERCARD')
+        assertEquals(0, walletService.getBalance(wallet.phone()).balance());
+        UUID id = jdbcClient.sql("SELECT wallet_id FROM wallets WHERE phone = :p").param("p", wallet.phone())
+                .query(UUID.class).single();
+        jdbcClient.sql("""
+                        WITH t1 AS (INSERT INTO transactions (id, type, amount, gateway_ref, payment_method)
+                                    VALUES (:r1, 'ADD_MONEY', 50000, gen_random_uuid(), 'VISA')),
+                             t2 AS (INSERT INTO transactions (id, type, amount, gateway_ref, payment_method)
+                                    VALUES (:r2, 'ADD_MONEY', 20000, gen_random_uuid(), 'MASTERCARD'))
+                        INSERT INTO ledger_entries (id, wallet_id, entry_no, wallet_type, type, direction, amount,
+                                                    balance_before, balance_after, counterparty_wallet_id, transaction_id)
+                        VALUES (:t1, :w, 1, 'LIABILITY', 'ADD_MONEY', 'CREDIT', 50000, 0, 50000, :c, :r1),
+                               (:t2, :c, 1, 'ASSET', 'GATEWAY_CLEARING', 'DEBIT', 50000, 0, 50000, :w, :r1),
+                               (:t3, :w, 2, 'LIABILITY', 'ADD_MONEY', 'CREDIT', 20000, 50000, 70000, :c, :r2),
+                               (:t4, :c, 2, 'ASSET', 'GATEWAY_CLEARING', 'DEBIT', 20000, 50000, 70000, :w, :r2)
                         """)
-                .param("t1", UUID.randomUUID()).param("t2", UUID.randomUUID()).param("w", id)
+                .param("t1", UUID.randomUUID()).param("t2", UUID.randomUUID())
+                .param("t3", UUID.randomUUID()).param("t4", UUID.randomUUID())
+                .param("r1", UUID.randomUUID()).param("r2", UUID.randomUUID())
+                .param("c", AppConstants.GATEWAY_CLEARING_WALLET_ID).param("w", id)
                 .update();
 
-        assertEquals(0, wallet.balance());
-        assertEquals(70000, walletService.getWallet(id).balance());
+        assertEquals(70000, walletService.getBalance(wallet.phone()).balance());
     }
 
     @Test
     void throwsWhenWalletMissing() {
-        assertThrows(WalletNotFoundException.class, () -> walletService.getWallet(UUID.randomUUID()));
+        assertThrows(WalletNotFoundException.class, () -> walletService.getWallet("01999999999"));
     }
 
     @Test
@@ -174,15 +199,17 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1, walletCount());
     }
 
-    private String storedPhone(UUID walletId) {
-        return jdbcClient.sql("SELECT " + Wallets.PHONE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id")
-                .param("id", walletId)
+    private String storedPhone(UUID userId) {
+        return jdbcClient.sql("SELECT " + Wallets.PHONE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.USER_ID + " = :id")
+                .param("id", userId)
                 .query(String.class)
                 .single();
     }
 
+    /** Counts customer wallets; the seeded system accounts are excluded. */
     private long walletCount() {
-        return jdbcClient.sql("SELECT count(*) FROM " + Wallets.TABLE).query(Long.class).single();
+        return jdbcClient.sql("SELECT count(*) FROM " + Wallets.TABLE + " WHERE " + Wallets.TYPE + " = 'LIABILITY'")
+                .query(Long.class).single();
     }
 
     /** Deterministic user_id (a UUID) for a readable test name. */

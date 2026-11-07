@@ -10,11 +10,12 @@ import java.util.UUID;
 public interface PaymentGatewayClient {
 
     /**
-     * Looks up the payment {@code gatewayRef} on the {@code method}'s gateway. Deciding whether the
-     * result is acceptable (captured, right amount/currency/network) is the caller's job.
+     * Looks up the payment {@code gatewayRef} on the {@code method}'s gateway, quoting the
+     * {@code merchantReference} (the wallet's phone) the payment is meant for. Deciding whether the result is
+     * acceptable (captured, right amount/currency/network/reference) is the caller's job.
      *
      * @throws PaymentNotFoundException if the gateway has no such payment
      * @throws PaymentGatewayException  if the gateway is unreachable, times out or answers unexpectedly
      */
-    PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount);
+    PaymentVerification verify(PaymentMethod method, UUID gatewayRef, String merchantReference, long amount);
 }

@@ -4,7 +4,12 @@ info:
   version: 0.0.1
   description: All amounts are integer poisha (1 BDT = 100 poisha).
 servers:
-  - url: http://localhost:8080
+  - url: '{baseUrl}'
+    description: MiniWallet Collection Variables
+    variables:
+      baseUrl:
+        default: http://localhost:8080
+        description: Scheme, host and port of the service
 
 paths:
   /api/v1/wallets:
@@ -30,22 +35,41 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /api/v1/wallets/{walletId}:
+  /api/v1/wallets/{phone}:
     get:
-      summary: Get a wallet and its balance
+      summary: Get a wallet's details (no balance; see the balance endpoint)
       operationId: getWallet
       tags: [Wallets]
       parameters:
-        - name: walletId
+        - name: phone
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string, description: 'Wallet phone number in any accepted format' }
       responses:
         '200':
           description: Wallet found
           content:
             application/json:
               schema: { $ref: '#/components/schemas/WalletResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /api/v1/wallets/{phone}/balance:
+    get:
+      summary: Get a wallet's balance
+      operationId: getBalance
+      tags: [Wallets]
+      parameters:
+        - name: phone
+          in: path
+          required: true
+          schema: { type: string, description: 'Wallet phone number in any accepted format' }
+      responses:
+        '200':
+          description: Balance of the wallet, from its latest ledger entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BalanceResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
@@ -80,7 +104,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '422':
-          description: PAYMENT_NOT_FOUND, PAYMENT_MISMATCH or IDEMPOTENCY_KEY_REUSED
+          description: PAYMENT_NOT_FOUND, PAYMENT_MISMATCH, SYSTEM_WALLET_NOT_ALLOWED (wallet is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -111,19 +135,19 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '422':
-          description: INSUFFICIENT_BALANCE, SAME_WALLET_TRANSFER or IDEMPOTENCY_KEY_REUSED
+          description: INSUFFICIENT_BALANCE (balance must cover amount + fee), SAME_WALLET_TRANSFER, SYSTEM_WALLET_NOT_ALLOWED (sender or receiver is not a customer wallet) or IDEMPOTENCY_KEY_REUSED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /api/v1/wallets/{walletId}/transactions:
+  /api/v1/wallets/{phone}/transactions:
     get:
       summary: List a wallet's transactions, newest first
-      operationId: listWalletTransactions
+      operationId: listLedgerEntries
       tags: [Wallets]
       parameters:
-        - { name: walletId, in: path, required: true, schema: { type: string, format: uuid } }
-        - { name: type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
+        - { name: phone, in: path, required: true, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
@@ -139,12 +163,12 @@ paths:
 
   /api/v1/transactions:
     get:
-      summary: List transactions across wallets, or of one wallet with wallet_id
+      summary: List transactions across wallets, or of one wallet with phone
       operationId: listTransactions
       tags: [Transactions]
       parameters:
-        - { name: wallet_id, in: query, schema: { type: string, format: uuid } }
-        - { name: type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
+        - { name: phone, in: query, schema: { type: string, description: Wallet phone number in any accepted format } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/EntryType' } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
         - { name: to, in: query, schema: { type: string, format: date-time } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
@@ -164,7 +188,7 @@ paths:
 
   /api/v1/transactions/{transactionId}:
     get:
-      summary: Get one transaction (one ledger entry)
+      summary: Get one transaction with all of its ledger entries
       operationId: getTransactionDetails
       tags: [Transactions]
       parameters:
@@ -207,7 +231,12 @@ components:
 
     TransactionType:
       type: string
-      enum: [ADD_MONEY, TRANSFER_IN, TRANSFER_OUT]
+      enum: [ADD_MONEY, TRANSFER]
+
+    EntryType:
+      type: string
+      description: Business meaning of one ledger entry (a debit or credit leg)
+      enum: [ADD_MONEY, GATEWAY_CLEARING, TRANSFER_IN, TRANSFER_OUT, FEE_IN, FEE_OUT]
 
     CreateWalletRequest:
       type: object
@@ -224,17 +253,29 @@ components:
       type: object
       properties:
         wallet_id: { type: string, format: uuid }
-        user_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid, description: Shared system user id (00000000-0000-7000-8000-000000000002) for system accounts }
+        phone: { type: string, example: '01712345678', description: The wallet's external identity; unique per wallet }
+        currency: { type: string, enum: [BDT] }
+        type:
+          type: string
+          enum: [ASSET, EXPENSE, REVENUE, EQUITY, LIABILITY]
+          description: Account class. Customer wallets are LIABILITY; the seeded system accounts are REVENUE (transfer fees), ASSET (gateway clearing), EXPENSE and EQUITY (owner capital)
+        created_at: { type: string, format: date-time }
+
+    BalanceResponse:
+      type: object
+      properties:
+        wallet_id: { type: string, format: uuid }
         phone: { type: string, example: '01712345678' }
         currency: { type: string, enum: [BDT] }
-        balance: { type: integer, format: int64 }
-        created_at: { type: string, format: date-time }
+        balance: { type: integer, format: int64, description: Poisha; the balance_after of the latest ledger entry, 0 if none }
+        updated_at: { type: string, format: date-time, description: When the balance last changed (latest ledger entry); the wallet's creation time if it never has }
 
     AddMoneyRequest:
       type: object
-      required: [wallet_id, amount, gateway_ref, payment_method]
+      required: [phone, amount, gateway_ref, payment_method]
       properties:
-        wallet_id: { type: string, format: uuid }
+        phone: { type: string, example: '01712345678' }
         amount: { $ref: '#/components/schemas/Amount' }
         gateway_ref:
           type: string
@@ -247,6 +288,7 @@ components:
       properties:
         transaction_id: { type: string, format: uuid }
         wallet_id: { type: string, format: uuid }
+        phone: { type: string, example: '01712345678' }
         added_amount: { type: integer, format: int64 }
         balance: { type: integer, format: int64 }
         gateway_ref: { type: string, format: uuid }
@@ -255,10 +297,10 @@ components:
 
     TransferRequest:
       type: object
-      required: [from_wallet_id, to_wallet_id, amount]
+      required: [from_phone, to_phone, amount]
       properties:
-        from_wallet_id: { type: string, format: uuid }
-        to_wallet_id: { type: string, format: uuid }
+        from_phone: { type: string, example: '01712345678', description: 'Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; normalized to 01XXXXXXXXX' }
+        to_phone: { type: string, example: '01712345678', description: 'Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; normalized to 01XXXXXXXXX' }
         amount: { $ref: '#/components/schemas/Amount' }
         note: { type: string, maxLength: 255 }
 
@@ -267,28 +309,42 @@ components:
       properties:
         transfer_id: { type: string, format: uuid }
         from_wallet_id: { type: string, format: uuid }
+        from_phone: { type: string, example: '01712345678' }
         to_wallet_id: { type: string, format: uuid }
+        to_phone: { type: string, example: '01712345678' }
         amount: { type: integer, format: int64 }
+        fee: { type: integer, format: int64, description: Fee in poisha charged to the sender on top of amount (500 = 5 BDT) }
         status: { type: string, enum: [COMPLETED] }
         created_at: { type: string, format: date-time }
 
     TransactionItemResponse:
       type: object
+      description: One ledger entry (a debit or credit leg of a transaction)
       properties:
-        transaction_id: { type: string, format: uuid }
-        type: { $ref: '#/components/schemas/TransactionType' }
+        entry_id: { type: string, format: uuid }
+        transaction_id: { type: string, format: uuid, description: The transaction this entry belongs to; its debits equal its credits }
+        wallet_id: { type: string, format: uuid }
+        phone: { type: string, example: '01712345678' }
+        type: { $ref: '#/components/schemas/EntryType' }
+        direction: { type: string, enum: [DEBIT, CREDIT] }
         amount: { type: integer, format: int64 }
         balance_after: { type: integer, format: int64 }
-        counterparty_wallet_id: { type: [string, 'null'], format: uuid }
-        reference_id: { type: string, format: uuid, description: gateway_ref for ADD_MONEY, transfer_id for transfers }
+        counterparty_wallet_id: { type: string, format: uuid }
+        counterparty_phone: { type: string, example: '01712345678' }
         created_at: { type: string, format: date-time }
 
     TransactionDetailResponse:
-      allOf:
-        - $ref: '#/components/schemas/TransactionItemResponse'
-        - type: object
-          properties:
-            wallet_id: { type: string, format: uuid }
+      type: object
+      properties:
+        transaction_id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/TransactionType' }
+        amount: { type: integer, format: int64, description: Principal moved; a transfer's fee is a separate pair of entries }
+        gateway_ref: { type: [string, 'null'], format: uuid, description: Set for ADD_MONEY only }
+        payment_method: { oneOf: [{ $ref: '#/components/schemas/PaymentMethod' }, { type: 'null' }] }
+        created_at: { type: string, format: date-time }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/TransactionItemResponse' }
 
     TransactionPageResponse:
       type: object

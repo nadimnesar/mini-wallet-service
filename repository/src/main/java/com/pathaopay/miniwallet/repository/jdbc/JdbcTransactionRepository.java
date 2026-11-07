@@ -1,10 +1,17 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
-import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Transactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
+import com.pathaopay.miniwallet.model.EntryDirection;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 import com.pathaopay.miniwallet.model.TransactionFilter;
+import com.pathaopay.miniwallet.model.EntryType;
+import com.pathaopay.miniwallet.model.LedgerEntryView;
+import com.pathaopay.miniwallet.model.LedgerTransaction;
 import com.pathaopay.miniwallet.model.TransactionType;
-import com.pathaopay.miniwallet.model.WalletTransaction;
+import com.pathaopay.miniwallet.model.LedgerEntry;
+import com.pathaopay.miniwallet.model.WalletType;
 import com.pathaopay.miniwallet.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
@@ -15,154 +22,193 @@ import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
 public class JdbcTransactionRepository implements TransactionRepository {
 
-    private static final String ADD_MONEY = "'" + TransactionType.ADD_MONEY.name() + "'";
+    private static final String ENTRY_COLUMNS = String.join(", ",
+            LedgerEntries.ID, LedgerEntries.WALLET_ID, LedgerEntries.WALLET_TYPE,
+            LedgerEntries.ENTRY_NO, LedgerEntries.TYPE, LedgerEntries.DIRECTION,
+            LedgerEntries.AMOUNT, LedgerEntries.BALANCE_BEFORE, LedgerEntries.BALANCE_AFTER,
+            LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID, LedgerEntries.CREATED_AT);
 
-    private static final String COLUMNS = String.join(", ",
-            WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO, WalletTransactions.TYPE,
-            WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE, WalletTransactions.BALANCE_AFTER,
-            WalletTransactions.COUNTERPARTY_WALLET_ID, WalletTransactions.REFERENCE_ID,
-            WalletTransactions.PAYMENT_METHOD, WalletTransactions.CREATED_AT);
+    private static final String INSERT_ENTRY =
+            "INSERT INTO " + LedgerEntries.TABLE + " (" + String.join(", ",
+                    LedgerEntries.ID, LedgerEntries.WALLET_ID, LedgerEntries.WALLET_TYPE,
+                    LedgerEntries.ENTRY_NO, LedgerEntries.TYPE, LedgerEntries.DIRECTION,
+                    LedgerEntries.AMOUNT, LedgerEntries.BALANCE_BEFORE, LedgerEntries.BALANCE_AFTER,
+                    LedgerEntries.COUNTERPARTY_WALLET_ID, LedgerEntries.TRANSACTION_ID) + ")"
+                    + " VALUES (:id, :walletId, :walletType, :entryNo, :type, :direction, :amount, :balanceBefore,"
+                    + " :balanceAfter, :counterpartyWalletId, :transactionId)"
+                    + " RETURNING " + ENTRY_COLUMNS;
 
     private static final String FIND_LATEST =
-            "SELECT " + COLUMNS
-                    + " FROM " + WalletTransactions.TABLE
-                    + " WHERE " + WalletTransactions.WALLET_ID + " = :walletId"
-                    + " ORDER BY " + WalletTransactions.ENTRY_NO + " DESC"
+            "SELECT " + ENTRY_COLUMNS
+                    + " FROM " + LedgerEntries.TABLE
+                    + " WHERE " + LedgerEntries.WALLET_ID + " = :walletId"
+                    + " ORDER BY " + LedgerEntries.ENTRY_NO + " DESC"
                     + " LIMIT 1";
 
-    private static final String EXISTS_ADD_MONEY_WITH_GATEWAY_REF =
-            "SELECT EXISTS (SELECT 1 FROM " + WalletTransactions.TABLE
-                    + " WHERE " + WalletTransactions.TYPE + " = " + ADD_MONEY
-                    + " AND " + WalletTransactions.REFERENCE_ID + " = :ref)";
+    // Entries for the external API: joined to both wallets so every wallet is shown by its phone number.
+    private static final String VIEW_SELECT =
+            "SELECT " + Arrays.stream(ENTRY_COLUMNS.split(", ")).map(c -> "e." + c).collect(Collectors.joining(", "))
+                    + ", w." + Wallets.PHONE + " AS wallet_phone, c." + Wallets.PHONE + " AS counterparty_phone"
+                    + " FROM " + LedgerEntries.TABLE + " e"
+                    + " JOIN " + Wallets.TABLE + " w ON w." + Wallets.WALLET_ID + " = e." + LedgerEntries.WALLET_ID
+                    + " JOIN " + Wallets.TABLE + " c ON c." + Wallets.WALLET_ID + " = e."
+                    + LedgerEntries.COUNTERPARTY_WALLET_ID;
 
-    // The conflict target is the partial unique index on gateway_ref, so a concurrent request that
-    // already credited the same gateway_ref makes this insert a no-op instead of aborting the transaction.
-    private static final String APPEND_ADD_MONEY =
-            "INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
-                    WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
-                    WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
-                    WalletTransactions.BALANCE_AFTER, WalletTransactions.REFERENCE_ID,
-                    WalletTransactions.PAYMENT_METHOD) + ")"
-                    + " VALUES (:id, :walletId, :entryNo, " + ADD_MONEY + ", :amount, :balanceBefore, :balanceAfter,"
-                    + " :referenceId, :paymentMethod)"
-                    + " ON CONFLICT (" + WalletTransactions.REFERENCE_ID + ")"
-                    + " WHERE " + WalletTransactions.TYPE + " = " + ADD_MONEY + " DO NOTHING"
-                    + " RETURNING " + COLUMNS;
+    private static final String FIND_ENTRIES =
+            VIEW_SELECT + " WHERE e." + LedgerEntries.TRANSACTION_ID + " = :transactionId"
+                    + " ORDER BY e." + LedgerEntries.CREATED_AT + ", e." + LedgerEntries.ID;
 
-    private static final String APPEND_TRANSFER_LEG =
-            "INSERT INTO " + WalletTransactions.TABLE + " (" + String.join(", ",
-                    WalletTransactions.ID, WalletTransactions.WALLET_ID, WalletTransactions.ENTRY_NO,
-                    WalletTransactions.TYPE, WalletTransactions.AMOUNT, WalletTransactions.BALANCE_BEFORE,
-                    WalletTransactions.BALANCE_AFTER, WalletTransactions.COUNTERPARTY_WALLET_ID,
-                    WalletTransactions.REFERENCE_ID) + ")"
-                    + " VALUES (:id, :walletId, :entryNo, :type, :amount, :balanceBefore, :balanceAfter,"
-                    + " :counterpartyWalletId, :referenceId)"
-                    + " RETURNING " + COLUMNS;
-
-    private static final String FIND_TRANSFER_OUT =
-            "SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE
-                    + " WHERE " + WalletTransactions.REFERENCE_ID + " = :transferId"
-                    + " AND " + WalletTransactions.TYPE + " = '" + TransactionType.TRANSFER_OUT.name() + "'";
+    private static final String FIND_ENTRY =
+            "SELECT " + ENTRY_COLUMNS + " FROM " + LedgerEntries.TABLE
+                    + " WHERE " + LedgerEntries.TRANSACTION_ID + " = :transactionId"
+                    + " AND " + LedgerEntries.TYPE + " = :type";
 
     private static final String NEWEST_FIRST =
-            " ORDER BY " + WalletTransactions.CREATED_AT + " DESC, " + WalletTransactions.ID + " DESC";
+            " ORDER BY e." + LedgerEntries.CREATED_AT + " DESC, e." + LedgerEntries.ID + " DESC";
 
-    private static final String FIND_BY_ID =
-            "SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE + " WHERE " + WalletTransactions.ID + " = :id";
+    private static final String TRANSACTION_COLUMNS = String.join(", ",
+            Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
+            Transactions.PAYMENT_METHOD, Transactions.CREATED_AT);
 
-    private static final RowMapper<WalletTransaction> ROW_MAPPER = (rs, rowNum) -> new WalletTransaction(
-            rs.getObject(WalletTransactions.ID, UUID.class),
-            rs.getObject(WalletTransactions.WALLET_ID, UUID.class),
-            rs.getLong(WalletTransactions.ENTRY_NO),
-            TransactionType.valueOf(rs.getString(WalletTransactions.TYPE)),
-            rs.getLong(WalletTransactions.AMOUNT),
-            rs.getLong(WalletTransactions.BALANCE_BEFORE),
-            rs.getLong(WalletTransactions.BALANCE_AFTER),
-            rs.getObject(WalletTransactions.COUNTERPARTY_WALLET_ID, UUID.class),
-            rs.getObject(WalletTransactions.REFERENCE_ID, UUID.class),
-            rs.getString(WalletTransactions.PAYMENT_METHOD) == null
-                    ? null : PaymentMethod.valueOf(rs.getString(WalletTransactions.PAYMENT_METHOD)),
-            rs.getObject(WalletTransactions.CREATED_AT, OffsetDateTime.class).toInstant());
+    private static final String INSERT_TRANSACTION =
+            "INSERT INTO " + Transactions.TABLE + " (" + String.join(", ",
+                    Transactions.ID, Transactions.TYPE, Transactions.AMOUNT, Transactions.GATEWAY_REF,
+                    Transactions.PAYMENT_METHOD) + ")"
+                    + " VALUES (:id, :type, :amount, :gatewayRef, :paymentMethod)";
+
+    // A concurrent request that already credited the same gateway_ref makes this insert a no-op instead of
+    // aborting the database transaction.
+    private static final String INSERT_ADD_MONEY = INSERT_TRANSACTION
+            + " ON CONFLICT (" + Transactions.GATEWAY_REF + ") DO NOTHING RETURNING " + TRANSACTION_COLUMNS;
+
+    private static final String INSERT_TRANSACTION_RETURNING = INSERT_TRANSACTION + " RETURNING " + TRANSACTION_COLUMNS;
+
+    private static final String FIND_TRANSACTION =
+            "SELECT " + TRANSACTION_COLUMNS + " FROM " + Transactions.TABLE + " WHERE " + Transactions.ID + " = :id";
+
+    private static final String EXISTS_BY_GATEWAY_REF =
+            "SELECT EXISTS (SELECT 1 FROM " + Transactions.TABLE
+                    + " WHERE " + Transactions.GATEWAY_REF + " = :ref)";
+
+    private static final RowMapper<LedgerEntry> ENTRY_ROW_MAPPER = (rs, rowNum) -> new LedgerEntry(
+            rs.getObject(LedgerEntries.ID, UUID.class),
+            rs.getObject(LedgerEntries.WALLET_ID, UUID.class),
+            WalletType.valueOf(rs.getString(LedgerEntries.WALLET_TYPE)),
+            rs.getLong(LedgerEntries.ENTRY_NO),
+            EntryType.valueOf(rs.getString(LedgerEntries.TYPE)),
+            EntryDirection.valueOf(rs.getString(LedgerEntries.DIRECTION)),
+            rs.getLong(LedgerEntries.AMOUNT),
+            rs.getLong(LedgerEntries.BALANCE_BEFORE),
+            rs.getLong(LedgerEntries.BALANCE_AFTER),
+            rs.getObject(LedgerEntries.COUNTERPARTY_WALLET_ID, UUID.class),
+            rs.getObject(LedgerEntries.TRANSACTION_ID, UUID.class),
+            rs.getObject(LedgerEntries.CREATED_AT, OffsetDateTime.class).toInstant());
+
+    private static final RowMapper<LedgerEntryView> VIEW_ROW_MAPPER = (rs, rowNum) -> new LedgerEntryView(
+            ENTRY_ROW_MAPPER.mapRow(rs, rowNum), rs.getString("wallet_phone"), rs.getString("counterparty_phone"));
+
+    private static final RowMapper<LedgerTransaction> TRANSACTION_ROW_MAPPER = (rs, rowNum) -> new LedgerTransaction(
+            rs.getObject(Transactions.ID, UUID.class),
+            TransactionType.valueOf(rs.getString(Transactions.TYPE)),
+            rs.getLong(Transactions.AMOUNT),
+            rs.getObject(Transactions.GATEWAY_REF, UUID.class),
+            rs.getString(Transactions.PAYMENT_METHOD) == null
+                    ? null : PaymentMethod.valueOf(rs.getString(Transactions.PAYMENT_METHOD)),
+            rs.getObject(Transactions.CREATED_AT, OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
 
     @Override
-    public Optional<WalletTransaction> findLatestEntry(UUID walletId) {
-        return jdbcClient.sql(FIND_LATEST).param("walletId", walletId).query(ROW_MAPPER).optional();
+    public Optional<LedgerEntry> findLatestEntry(UUID walletId) {
+        return jdbcClient.sql(FIND_LATEST).param("walletId", walletId).query(ENTRY_ROW_MAPPER).optional();
     }
 
     @Override
-    public boolean existsAddMoneyWithGatewayRef(UUID gatewayRef) {
-        return jdbcClient.sql(EXISTS_ADD_MONEY_WITH_GATEWAY_REF).param("ref", gatewayRef).query(Boolean.class).single();
+    public boolean existsByGatewayRef(UUID gatewayRef) {
+        return jdbcClient.sql(EXISTS_BY_GATEWAY_REF).param("ref", gatewayRef).query(Boolean.class).single();
     }
 
     @Override
-    public Optional<WalletTransaction> appendAddMoney(WalletTransaction entry) {
-        return jdbcClient.sql(APPEND_ADD_MONEY)
+    public Optional<LedgerTransaction> insertAddMoney(LedgerTransaction transaction) {
+        return bind(jdbcClient.sql(INSERT_ADD_MONEY), transaction).query(TRANSACTION_ROW_MAPPER).optional();
+    }
+
+    @Override
+    public LedgerTransaction insert(LedgerTransaction transaction) {
+        return bind(jdbcClient.sql(INSERT_TRANSACTION_RETURNING), transaction).query(TRANSACTION_ROW_MAPPER).single();
+    }
+
+    private static JdbcClient.StatementSpec bind(JdbcClient.StatementSpec statement, LedgerTransaction transaction) {
+        return statement
+                .param("id", transaction.id())
+                .param("type", transaction.type().name())
+                .param("amount", transaction.amount())
+                .param("gatewayRef", transaction.gatewayRef(), Types.OTHER)
+                .param("paymentMethod", transaction.paymentMethod() == null ? null : transaction.paymentMethod().name(),
+                        Types.VARCHAR);
+    }
+
+    @Override
+    public LedgerEntry appendEntry(LedgerEntry entry) {
+        return jdbcClient.sql(INSERT_ENTRY)
                 .param("id", entry.id())
                 .param("walletId", entry.walletId())
-                .param("entryNo", entry.entryNo())
-                .param("amount", entry.amount())
-                .param("balanceBefore", entry.balanceBefore())
-                .param("balanceAfter", entry.balanceAfter())
-                .param("referenceId", entry.referenceId())
-                .param("paymentMethod", entry.paymentMethod().name(), Types.VARCHAR)
-                .query(ROW_MAPPER)
-                .optional();
-    }
-
-    @Override
-    public Optional<WalletTransaction> findById(UUID transactionId) {
-        return jdbcClient.sql(FIND_BY_ID).param("id", transactionId).query(ROW_MAPPER).optional();
-    }
-
-    @Override
-    public WalletTransaction appendTransferLeg(WalletTransaction entry) {
-        return jdbcClient.sql(APPEND_TRANSFER_LEG)
-                .param("id", entry.id())
-                .param("walletId", entry.walletId())
+                .param("walletType", entry.walletType().name())
                 .param("entryNo", entry.entryNo())
                 .param("type", entry.type().name())
+                .param("direction", entry.direction().name())
                 .param("amount", entry.amount())
                 .param("balanceBefore", entry.balanceBefore())
                 .param("balanceAfter", entry.balanceAfter())
                 .param("counterpartyWalletId", entry.counterpartyWalletId())
-                .param("referenceId", entry.referenceId())
-                .query(ROW_MAPPER)
+                .param("transactionId", entry.transactionId())
+                .query(ENTRY_ROW_MAPPER)
                 .single();
     }
 
     @Override
-    public Optional<WalletTransaction> findTransferOut(UUID transferId) {
-        return jdbcClient.sql(FIND_TRANSFER_OUT).param("transferId", transferId).query(ROW_MAPPER).optional();
+    public Optional<LedgerTransaction> findTransaction(UUID transactionId) {
+        return jdbcClient.sql(FIND_TRANSACTION).param("id", transactionId).query(TRANSACTION_ROW_MAPPER).optional();
     }
 
     @Override
-    public List<WalletTransaction> search(TransactionFilter filter, int limit, long offset) {
+    public List<LedgerEntryView> findEntries(UUID transactionId) {
+        return jdbcClient.sql(FIND_ENTRIES).param("transactionId", transactionId).query(VIEW_ROW_MAPPER).list();
+    }
+
+    @Override
+    public Optional<LedgerEntry> findEntry(UUID transactionId, EntryType type) {
+        return jdbcClient.sql(FIND_ENTRY).param("transactionId", transactionId).param("type", type.name())
+                .query(ENTRY_ROW_MAPPER).optional();
+    }
+
+    @Override
+    public List<LedgerEntryView> search(TransactionFilter filter, int limit, long offset) {
         Where where = Where.of(filter);
-        return jdbcClient.sql("SELECT " + COLUMNS + " FROM " + WalletTransactions.TABLE + where.sql
-                        + NEWEST_FIRST + " LIMIT :limit OFFSET :offset")
+        return jdbcClient.sql(VIEW_SELECT + where.sql + NEWEST_FIRST + " LIMIT :limit OFFSET :offset")
                 .params(where.params)
                 .param("limit", limit)
                 .param("offset", offset)
-                .query(ROW_MAPPER)
+                .query(VIEW_ROW_MAPPER)
                 .list();
     }
 
     @Override
     public long count(TransactionFilter filter) {
         Where where = Where.of(filter);
-        return jdbcClient.sql("SELECT count(*) FROM " + WalletTransactions.TABLE + where.sql)
+        return jdbcClient.sql("SELECT count(*) FROM " + LedgerEntries.TABLE + " e" + where.sql)
                 .params(where.params)
                 .query(Long.class)
                 .single();
@@ -174,19 +220,19 @@ public class JdbcTransactionRepository implements TransactionRepository {
             List<String> conditions = new ArrayList<>();
             Map<String, Object> params = new HashMap<>();
             if (filter.walletId() != null) {
-                conditions.add(WalletTransactions.WALLET_ID + " = :walletId");
+                conditions.add("e." + LedgerEntries.WALLET_ID + " = :walletId");
                 params.put("walletId", filter.walletId());
             }
             if (filter.type() != null) {
-                conditions.add(WalletTransactions.TYPE + " = :type");
+                conditions.add("e." + LedgerEntries.TYPE + " = :type");
                 params.put("type", filter.type().name());
             }
             if (filter.from() != null) {
-                conditions.add(WalletTransactions.CREATED_AT + " >= :from");
+                conditions.add("e." + LedgerEntries.CREATED_AT + " >= :from");
                 params.put("from", OffsetDateTime.ofInstant(filter.from(), ZoneOffset.UTC));
             }
             if (filter.to() != null) {
-                conditions.add(WalletTransactions.CREATED_AT + " <= :to");
+                conditions.add("e." + LedgerEntries.CREATED_AT + " <= :to");
                 params.put("to", OffsetDateTime.ofInstant(filter.to(), ZoneOffset.UTC));
             }
             return new Where(conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions), params);

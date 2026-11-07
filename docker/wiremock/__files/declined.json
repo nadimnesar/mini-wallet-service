@@ -3,6 +3,7 @@
   "status": "DECLINED",
   "amount": {{jsonPath request.body '$.amount'}},
   "currency": "{{jsonPath request.body '$.currency'}}",
+  "merchant_reference": "{{jsonPath request.body '$.merchant_reference'}}",
   "card_network": "{{upper request.pathSegments.[0]}}",
   "decline_reason": "INSUFFICIENT_FUNDS"
 }

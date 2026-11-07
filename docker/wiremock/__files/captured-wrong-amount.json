@@ -3,6 +3,7 @@
   "status": "CAPTURED",
   "amount": 100,
   "currency": "{{jsonPath request.body '$.currency'}}",
+  "merchant_reference": "{{jsonPath request.body '$.merchant_reference'}}",
   "card_network": "{{upper request.pathSegments.[0]}}",
   "authorization_code": "{{randomValue length=6 type='ALPHANUMERIC' uppercase=true}}",
   "captured_at": "{{now}}"

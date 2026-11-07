@@ -2,7 +2,7 @@ package com.pathaopay.miniwallet.controller;
 
 import com.pathaopay.miniwallet.dto.TransactionDetailResponse;
 import com.pathaopay.miniwallet.dto.TransactionPageResponse;
-import com.pathaopay.miniwallet.model.TransactionType;
+import com.pathaopay.miniwallet.model.EntryType;
 import com.pathaopay.miniwallet.service.TransactionService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -25,11 +25,11 @@ public class TransactionController {
 
     @GetMapping
     public ResponseEntity<TransactionPageResponse> listTransactions(
-            @RequestParam(name = "wallet_id", required = false)
-            UUID walletId,
+            @RequestParam(name = "phone", required = false)
+            String phone,
 
             @RequestParam(name = "type", required = false)
-            TransactionType type,
+            EntryType type,
 
             @RequestParam(name = "from", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -47,7 +47,7 @@ public class TransactionController {
             @Min(value = 1, message = "page_size must be at least 1")
             @Max(value = 100, message = "page_size cannot exceed 100")
             int pageSize) {
-        TransactionPageResponse response = transactionService.getTransactions(walletId, type, from, to, page, pageSize);
+        TransactionPageResponse response = transactionService.getTransactions(phone, type, from, to, page, pageSize);
         return ResponseEntity.ok(response);
     }
 

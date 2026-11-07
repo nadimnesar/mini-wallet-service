@@ -39,6 +39,7 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.DUPLICATE_GATEWAY_REF, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INSUFFICIENT_BALANCE, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.SAME_WALLET_TRANSFER, HttpStatus.UNPROCESSABLE_ENTITY),
+            Map.entry(ErrorCode.SYSTEM_WALLET_NOT_ALLOWED, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.IDEMPOTENCY_KEY_REUSED, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.UNPROCESSABLE_ENTITY),
             Map.entry(ErrorCode.PAYMENT_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY),
@@ -50,6 +51,7 @@ public class GlobalExceptionHandler {
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .findFirst()
                 .orElse(ErrorMessage.VALIDATION_FAILED);
+        log.debug("Request body failed validation: {}", detailMessage);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR, detailMessage));
     }
@@ -83,6 +85,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         // A value Jackson cannot convert (e.g. a non-UUID user_id or an unknown payment_method) names its field.
+        log.debug("Unreadable request body: {}", ex.getMostSpecificCause().getMessage());
         String message = ex.getMostSpecificCause() instanceof MismatchedInputException mismatch
                 && !mismatch.getPath().isEmpty()
                 ? ErrorMessage.INVALID_FIELD_VALUE.formatted(fieldPath(mismatch))
@@ -112,6 +115,8 @@ public class GlobalExceptionHandler {
         HttpStatus status = STATUS_BY_ERROR_CODE.getOrDefault(ex.getErrorCode(), HttpStatus.BAD_REQUEST);
         if (ex.isRetryable()) {
             log.warn("{}: {}", ex.getErrorCode(), ex.getMessage(), ex.getCause());
+        } else {
+            log.debug("Request rejected: status={} code={} message={}", status.value(), ex.getErrorCode(), ex.getMessage());
         }
         return ResponseEntity.status(status).body(ErrorResponse.of(ex.getErrorCode(), ex.getMessage()));
     }

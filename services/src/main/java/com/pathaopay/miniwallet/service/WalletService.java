@@ -1,12 +1,15 @@
 package com.pathaopay.miniwallet.service;
 
+import com.pathaopay.miniwallet.dto.BalanceResponse;
 import com.pathaopay.miniwallet.dto.CreateWalletRequest;
 import com.pathaopay.miniwallet.dto.WalletResponse;
-
-import java.util.UUID;
 
 public interface WalletService {
     WalletResponse createWallet(CreateWalletRequest request);
 
-    WalletResponse getWallet(UUID walletId);
+    /** @param phone any accepted format; normalized to 01XXXXXXXXX */
+    WalletResponse getWallet(String phone);
+
+    /** @param phone any accepted format; normalized to 01XXXXXXXXX */
+    BalanceResponse getBalance(String phone);
 }

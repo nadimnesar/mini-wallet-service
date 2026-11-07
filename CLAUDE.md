@@ -19,16 +19,21 @@ Guidance for Claude Code when working in this repository.
 
 ## Money model (ledger is the source of truth)
 
-- `wallets` has **no balance column**. A wallet's balance is the `balance_after` of its latest `wallet_transactions` entry (by `entry_no`), or 0 if it has none. Never add a mutable balance column.
-- `wallet_transactions` is an append-only chain per wallet. Postgres enforces it (see `002-create-wallet-transactions-table.sql`):
+- `wallets` has **no balance column**. A wallet's balance is the `balance_after` of its latest `ledger_entries` entry (by `entry_no`), or 0 if it has none. Never add a mutable balance column.
+- **The phone number is the external identity of a wallet.** Every endpoint, request/response field and error message identifies wallets by phone (normalize with `PhoneNumberUtils.normalize`; resolve with `WalletRepository.findByPhone`). `wallet_id` appears in responses next to the phone but is never accepted in requests; `LedgerEntryView` supplies the phones. Wallet details and balance are two endpoints (`GET /wallets/{phone}` and `.../balance`): `Wallet` has no balance and no `updated_at` (nothing ever changes a wallet row); `WalletBalance` comes from the latest ledger entry and its `updated_at` is that entry's time.
+- The ledger is double-entry. `wallets.type` is an account class: `ASSET`, `EXPENSE`, `REVENUE`, `EQUITY`, `LIABILITY` (`WalletType`; ASSET/EXPENSE are debit-normal, the rest credit-normal, see `WalletType.apply`). Customer wallets are `LIABILITY`; Liquibase seeds one system account per other class (`REVENUE_WALLET_ID`, `GATEWAY_CLEARING_WALLET_ID`, `OPERATING_EXPENSE_WALLET_ID`, `OWNER_EQUITY_WALLET_ID` in `AppConstants`), all owned by `SYSTEM_USER_ID` and each with a reserved `010…` phone (`*_WALLET_PHONE`), all at balance 0 (no seeded transactions). Every wallet has a mandatory, unique phone; customer (`LIABILITY`) wallets can never use `SYSTEM_USER_ID` (a DB check). `user_id` is unique among customer wallets only. Services reject system accounts as customer wallets with `SystemWalletException`.
+- Two append-only tables (changelogs `002-create-transactions-table.sql`, `003-create-ledger-entries-table.sql`): `transactions` has one row per business operation (`TransactionType`: `ADD_MONEY`, `TRANSFER`; amount; `gateway_ref` + `payment_method` for add-money, `gateway_ref` unique), and `ledger_entries` holds its debit/credit legs. Always insert the `transactions` row first, then its entries, in one database transaction.
+- `ledger_entries` holds debit/credit legs, an append-only chain per wallet. Each leg carries `direction` (fixed by its `TransactionType`) and the wallet's `wallet_type`. Legs of one transaction share a `transaction_id`, and debits must equal credits. Postgres enforces it (see `003-create-ledger-entries-table.sql`):
+  - a deferred constraint trigger rejects, at commit, a transaction with fewer than two entries or unbalanced entries, and triggers reject UPDATE/DELETE on both tables
+  - each leg type posts on its own side and account class
   - `entry_no` runs 1, 2, 3… with no gaps or forks
   - each entry's `balance_before` must equal the previous entry's `balance_after`
   - entry 1 starts from 0
   - `balance_after >= 0`
-  - the arithmetic matches the type
+  - the arithmetic matches the type and the wallet's account class
   - amounts are 100–2,500,000 poisha
-  - a gateway_ref credits only once
-- To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. A transfer writes both legs (`TRANSFER_OUT` + `TRANSFER_IN`) with the same `reference_id`. Never UPDATE or DELETE ledger rows.
+  - a gateway_ref credits only once (unique on `transactions`)
+- To move money, lock the involved `wallets` rows (`SELECT … FOR UPDATE`, in ascending id order), read each wallet's latest entry, and insert the next entry or entries in the same transaction. Add-money writes two legs (`GATEWAY_CLEARING` debit on the clearing asset + `ADD_MONEY` credit on the customer) under one `ADD_MONEY` transaction (its id is the response `transaction_id`). A transfer writes four legs (`TRANSFER_OUT` + `FEE_OUT` on the sender, `TRANSFER_IN` on the receiver, `FEE_IN` on the revenue account) under one `TRANSFER` transaction (its id is the `transfer_id`); the flat fee is `AppConstants.TRANSFER_FEE_POISHA`, and the revenue and clearing accounts are locked in every transfer/add-money (a deliberate hot row). Never UPDATE or DELETE ledger rows. Tests that insert raw rows must insert the transaction and all its balanced entries in one statement (a data-modifying CTE); the test reset truncates both tables.
 
 ## Idempotent endpoints (add-money, transfers)
 
@@ -38,7 +43,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Payment gateway mock
 
-- `PaymentGatewayClient` (clients) is implemented over HTTP by `HttpPaymentGatewayClient`, which forces HTTP/1.1 (WireMock resets h2c upgrades). Locally and in tests the gateway is WireMock with stubs in `docker/wiremock`. Scenarios are picked by a reserved prefix of the `gateway_ref` UUID, e.g. `00000402-…` for declined (see README). Extend those stubs instead of mocking the client in tests.
+- `PaymentGatewayClient` (clients) is implemented over HTTP by `HttpPaymentGatewayClient`, which forces HTTP/1.1 (WireMock resets h2c upgrades). Locally and in tests the gateway is WireMock with stubs in `docker/wiremock`. Scenarios are picked by a reserved prefix of the `gateway_ref` UUID, e.g. `00000402-…` for declined (see README). The verify request carries the wallet phone as `merchant_reference`, and the gateway must echo it (`00000423-…` simulates another wallet). Extend those stubs instead of mocking the client in tests.
 
 ## Database schema (Liquibase)
 

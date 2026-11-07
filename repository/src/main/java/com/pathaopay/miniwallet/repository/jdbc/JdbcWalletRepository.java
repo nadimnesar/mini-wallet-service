@@ -1,9 +1,11 @@
 package com.pathaopay.miniwallet.repository.jdbc;
 
-import com.pathaopay.miniwallet.common.constant.DbConstants.WalletTransactions;
+import com.pathaopay.miniwallet.common.constant.DbConstants.LedgerEntries;
 import com.pathaopay.miniwallet.common.constant.DbConstants.Wallets;
 import com.pathaopay.miniwallet.model.Currency;
 import com.pathaopay.miniwallet.model.Wallet;
+import com.pathaopay.miniwallet.model.WalletBalance;
+import com.pathaopay.miniwallet.model.WalletType;
 import com.pathaopay.miniwallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
@@ -19,35 +21,36 @@ import java.util.UUID;
 public class JdbcWalletRepository implements WalletRepository {
 
     private static final String WALLET_COLUMNS = String.join(", ",
-            Wallets.ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY, Wallets.CREATED_AT, Wallets.UPDATED_AT);
+            Wallets.WALLET_ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY, Wallets.TYPE, Wallets.CREATED_AT);
 
     // ON CONFLICT (any unique constraint: user_id or phone) makes the one-wallet-per-user and
     // one-wallet-per-phone rules race-safe: concurrent duplicates insert nothing.
     private static final String INSERT_IF_ABSENT =
             "INSERT INTO " + Wallets.TABLE
-                    + " (" + String.join(", ", Wallets.ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY) + ")"
+                    + " (" + String.join(", ", Wallets.WALLET_ID, Wallets.USER_ID, Wallets.PHONE, Wallets.CURRENCY) + ")"
                     + " VALUES (:id, :userId, :phone, :currency)"
                     + " ON CONFLICT DO NOTHING"
-                    + " RETURNING " + WALLET_COLUMNS + ", 0::BIGINT AS " + Wallets.BALANCE_ALIAS;
-
-    // The ledger is the source of truth: balance = balance_after of the latest entry, 0 if none.
-    private static final String LATEST_BALANCE =
-            "SELECT " + WalletTransactions.BALANCE_AFTER
-                    + " FROM " + WalletTransactions.TABLE
-                    + " WHERE " + WalletTransactions.WALLET_ID + " = " + Wallets.TABLE + "." + Wallets.ID
-                    + " ORDER BY " + WalletTransactions.ENTRY_NO + " DESC"
-                    + " LIMIT 1";
+                    + " RETURNING " + WALLET_COLUMNS;
 
     private static final String FIND_BY_ID =
-            "SELECT " + WALLET_COLUMNS + ", COALESCE((" + LATEST_BALANCE + "), 0) AS " + Wallets.BALANCE_ALIAS
-                    + " FROM " + Wallets.TABLE
-                    + " WHERE " + Wallets.ID + " = :id";
+            "SELECT " + WALLET_COLUMNS + " FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id";
+
+    private static final String FIND_BY_PHONE =
+            "SELECT " + WALLET_COLUMNS + " FROM " + Wallets.TABLE + " WHERE " + Wallets.PHONE + " = :phone";
+
+    // The ledger is the source of truth: balance = balance_after of the latest entry.
+    private static final String FIND_LATEST_BALANCE =
+            "SELECT " + LedgerEntries.BALANCE_AFTER + ", " + LedgerEntries.CREATED_AT
+                    + " FROM " + LedgerEntries.TABLE
+                    + " WHERE " + LedgerEntries.WALLET_ID + " = :id"
+                    + " ORDER BY " + LedgerEntries.ENTRY_NO + " DESC"
+                    + " LIMIT 1";
 
     private static final String EXISTS_BY_ID =
-            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id)";
+            "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id)";
 
     private static final String LOCK_FOR_UPDATE =
-            "SELECT " + Wallets.ID + " FROM " + Wallets.TABLE + " WHERE " + Wallets.ID + " = :id FOR UPDATE";
+            "SELECT " + Wallets.TYPE + " FROM " + Wallets.TABLE + " WHERE " + Wallets.WALLET_ID + " = :id FOR UPDATE";
 
     private static final String EXISTS_BY_USER_ID =
             "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.USER_ID + " = :userId)";
@@ -56,13 +59,12 @@ public class JdbcWalletRepository implements WalletRepository {
             "SELECT EXISTS (SELECT 1 FROM " + Wallets.TABLE + " WHERE " + Wallets.PHONE + " = :phone)";
 
     private static final RowMapper<Wallet> WALLET_ROW_MAPPER = (rs, rowNum) -> new Wallet(
-            rs.getObject(Wallets.ID, UUID.class),
+            rs.getObject(Wallets.WALLET_ID, UUID.class),
             rs.getObject(Wallets.USER_ID, UUID.class),
             rs.getString(Wallets.PHONE),
             Currency.valueOf(rs.getString(Wallets.CURRENCY)),
-            rs.getLong(Wallets.BALANCE_ALIAS),
-            rs.getObject(Wallets.CREATED_AT, OffsetDateTime.class).toInstant(),
-            rs.getObject(Wallets.UPDATED_AT, OffsetDateTime.class).toInstant());
+            WalletType.valueOf(rs.getString(Wallets.TYPE)),
+            rs.getObject(Wallets.CREATED_AT, OffsetDateTime.class).toInstant());
 
     private final JdbcClient jdbcClient;
 
@@ -93,8 +95,22 @@ public class JdbcWalletRepository implements WalletRepository {
     }
 
     @Override
-    public boolean lockForUpdate(UUID walletId) {
-        return jdbcClient.sql(LOCK_FOR_UPDATE).param("id", walletId).query(UUID.class).optional().isPresent();
+    public Optional<WalletType> lockForUpdate(UUID walletId) {
+        return jdbcClient.sql(LOCK_FOR_UPDATE).param("id", walletId).query(String.class).optional()
+                .map(WalletType::valueOf);
+    }
+
+    @Override
+    public Optional<Wallet> findByPhone(String phone) {
+        return jdbcClient.sql(FIND_BY_PHONE).param("phone", phone).query(WALLET_ROW_MAPPER).optional();
+    }
+
+    @Override
+    public Optional<WalletBalance> findLatestBalance(UUID walletId) {
+        return jdbcClient.sql(FIND_LATEST_BALANCE).param("id", walletId)
+                .query((rs, rowNum) -> new WalletBalance(rs.getLong(LedgerEntries.BALANCE_AFTER),
+                        rs.getObject(LedgerEntries.CREATED_AT, OffsetDateTime.class).toInstant()))
+                .optional();
     }
 
     @Override

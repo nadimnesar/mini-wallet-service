@@ -9,6 +9,7 @@ import com.pathaopay.miniwallet.common.constant.PaymentGatewayConstants;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentGatewayException;
 import com.pathaopay.miniwallet.common.exception.payment.PaymentNotFoundException;
 import com.pathaopay.miniwallet.model.PaymentMethod;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -26,6 +27,7 @@ import java.util.UUID;
  * (stubs in {@code docker/wiremock}).
  */
 @Component
+@Slf4j
 public class HttpPaymentGatewayClient implements PaymentGatewayClient {
 
     private final RestClient restClient;
@@ -48,34 +50,42 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
     }
 
     @Override
-    public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, long amount) {
+    public PaymentVerification verify(PaymentMethod method, UUID gatewayRef, String merchantReference, long amount) {
         String network = method.name().toLowerCase(Locale.ROOT);
         VerifyResponse response;
+        log.debug("Verifying payment with {} gateway: gatewayRef={} amount={}", method, gatewayRef, amount);
         try {
             response = restClient.post()
                     .uri(PaymentGatewayConstants.VERIFY_PATH.formatted(network))
                     .header(PaymentGatewayConstants.API_KEY_HEADER, properties.network(method).apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(new VerifyRequest(gatewayRef, amount, AppConstants.CURRENCY_CODE))
+                    .body(new VerifyRequest(gatewayRef, merchantReference, amount, AppConstants.CURRENCY_CODE))
                     .retrieve()
                     .onStatus(status -> status.isSameCodeAs(HttpStatus.NOT_FOUND), (request, res) -> {
+                        log.info("{} gateway has no payment: gatewayRef={}", method, gatewayRef);
                         throw new PaymentNotFoundException(ErrorMessage.PAYMENT_NOT_FOUND.formatted(method, gatewayRef));
                     })
                     .body(VerifyResponse.class);
         } catch (RestClientException e) {
             // Non-2xx (other than 404), timeouts, connection failures and unreadable bodies.
+            log.warn("{} gateway call failed: gatewayRef={} cause={}", method, gatewayRef, e.getMessage());
             throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), e);
         }
         if (response == null || response.status() == null || response.amount() == null) {
+            log.warn("{} gateway returned an incomplete response: gatewayRef={}", method, gatewayRef);
             throw new PaymentGatewayException(ErrorMessage.PAYMENT_GATEWAY_ERROR.formatted(method), null);
         }
+        log.info("{} gateway verified payment: gatewayRef={} status={} declineReason={}",
+                method, gatewayRef, response.status(), response.declineReason());
         return new PaymentVerification(response.gatewayRef(), response.status(), response.amount(),
-                response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason());
+                response.currency(), response.cardNetwork(), response.authorizationCode(), response.declineReason(),
+                response.merchantReference());
     }
 
     private record VerifyRequest(
             @JsonProperty("gateway_ref") UUID gatewayRef,
+            @JsonProperty("merchant_reference") String merchantReference,
             @JsonProperty("amount") long amount,
             @JsonProperty("currency") String currency) {
     }
@@ -87,6 +97,7 @@ public class HttpPaymentGatewayClient implements PaymentGatewayClient {
             @JsonProperty("currency") String currency,
             @JsonProperty("card_network") PaymentMethod cardNetwork,
             @JsonProperty("authorization_code") String authorizationCode,
-            @JsonProperty("decline_reason") String declineReason) {
+            @JsonProperty("decline_reason") String declineReason,
+            @JsonProperty("merchant_reference") String merchantReference) {
     }
 }

@@ -102,6 +102,21 @@
       }
     },
     {
+      "name": "gateway_ref 00000423-...: captured for a different wallet",
+      "priority": 2,
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/(visa|mastercard)/v1/payments/verify",
+        "bodyPatterns": [ { "matchesJsonPath": { "expression": "$.gateway_ref", "matches": "^00000423-.*" } } ]
+      },
+      "response": {
+        "status": 200,
+        "bodyFileName": "captured-other-wallet.json",
+        "transformers": [ "response-template" ],
+        "headers": { "Content-Type": "application/json" }
+      }
+    },
+    {
       "name": "Any other gateway_ref: payment captured",
       "priority": 10,
       "request": {

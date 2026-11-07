@@ -1,0 +1,25 @@
+package com.pathaopay.miniwallet.dto;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.pathaopay.miniwallet.model.Currency;
+
+import java.time.Instant;
+import java.util.UUID;
+
+public record BalanceResponse(
+        @JsonProperty("wallet_id")
+        UUID walletId,
+
+        @JsonProperty("phone")
+        String phone,
+
+        @JsonProperty("currency")
+        Currency currency,
+
+        @JsonProperty("balance")
+        long balance,
+
+        /** When the balance last changed (the latest ledger entry); the wallet's creation time if it never has. */
+        @JsonProperty("updated_at")
+        Instant updatedAt
+) {}

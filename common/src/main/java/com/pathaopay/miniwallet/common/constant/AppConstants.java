@@ -3,6 +3,8 @@ package com.pathaopay.miniwallet.common.constant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /** Application-wide constants: HTTP headers, money rules, phone formats and request validation. */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AppConstants {
@@ -14,6 +16,29 @@ public final class AppConstants {
     public static final long POISHA_PER_BDT = 100;
     public static final long MIN_AMOUNT_POISHA = 100;
     public static final long MAX_AMOUNT_POISHA = 2_500_000;
+    /** Fee charged to the sender on top of every transfer: 5 BDT. */
+    public static final long TRANSFER_FEE_POISHA = 5 * POISHA_PER_BDT;
+    /** Owner (user_id) shared by every system account; no customer wallet can use it. Seeded by Liquibase. */
+    public static final UUID SYSTEM_USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000002");
+    /** EXPENSE account for the platform's operating costs; no flow posts to it yet. */
+    public static final UUID OPERATING_EXPENSE_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000005");
+    /** EQUITY account for the owners' capital; no flow posts to it yet. */
+    public static final UUID OWNER_EQUITY_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000006");
+    /**
+     * Phone numbers of the system accounts. The 010 prefix is not assigned to any operator, so no real customer
+     * number collides; the unique phone constraint rejects a customer who tries to register one anyway.
+     */
+    public static final String REVENUE_WALLET_PHONE = "01000000001";
+    public static final String GATEWAY_CLEARING_WALLET_PHONE = "01000000003";
+    public static final String OPERATING_EXPENSE_WALLET_PHONE = "01000000005";
+    public static final String OWNER_EQUITY_WALLET_PHONE = "01000000006";
+    /** REVENUE account that collects transfer fees; seeded by Liquibase changeset 001-seed-system-wallets. */
+    public static final UUID REVENUE_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000001");
+    /**
+     * ASSET account for money owed to the platform by the card gateways: debited by every add-money, so that each
+     * customer credit has a matching debit. Seeded by Liquibase changeset 001-seed-system-wallets.
+     */
+    public static final UUID GATEWAY_CLEARING_WALLET_ID = UUID.fromString("00000000-0000-7000-8000-000000000003");
     /** ISO 4217 code of the only supported currency. */
     public static final String CURRENCY_CODE = "BDT";
 
@@ -35,11 +60,9 @@ public final class AppConstants {
     public static final String PHONE_FORMAT = "phone must be a Bangladeshi mobile number in one of the formats "
             + "1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX";
 
-    public static final String WALLET_ID_REQUIRED = "wallet_id is required";
+    public static final String FROM_PHONE_REQUIRED = "from_phone is required";
 
-    public static final String FROM_WALLET_ID_REQUIRED = "from_wallet_id is required";
-
-    public static final String TO_WALLET_ID_REQUIRED = "to_wallet_id is required";
+    public static final String TO_PHONE_REQUIRED = "to_phone is required";
 
     public static final String GATEWAY_REF_REQUIRED = "gateway_ref is required";
 

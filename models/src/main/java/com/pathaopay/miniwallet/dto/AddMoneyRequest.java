@@ -5,15 +5,18 @@ import com.pathaopay.miniwallet.common.constant.AppConstants;
 import com.pathaopay.miniwallet.model.PaymentMethod;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import java.util.UUID;
 
 /** Body of {@code POST /api/v1/wallets/add-money}. */
 public record AddMoneyRequest(
-        @NotNull(message = AppConstants.WALLET_ID_REQUIRED)
-        @JsonProperty("wallet_id")
-        UUID walletId,
+        @NotBlank(message = AppConstants.PHONE_REQUIRED)
+        @Pattern(regexp = AppConstants.PHONE_ACCEPTED_PATTERN, message = AppConstants.PHONE_FORMAT)
+        @JsonProperty("phone")
+        String phone,
 
         @NotNull(message = AppConstants.AMOUNT_REQUIRED)
         @Min(value = AppConstants.MIN_AMOUNT_POISHA, message = AppConstants.AMOUNT_MIN)
