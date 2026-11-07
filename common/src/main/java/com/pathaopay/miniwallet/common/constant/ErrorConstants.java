@@ -33,6 +33,8 @@ public final class ErrorConstants {
         public static final String INVALID_DATE_RANGE = "INVALID_DATE_RANGE";
         public static final String NOT_FOUND = "NOT_FOUND";
         public static final String METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED";
+        public static final String UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE";
+        public static final String NOT_ACCEPTABLE = "NOT_ACCEPTABLE";
         public static final String INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR";
     }
 
@@ -56,14 +58,14 @@ public final class ErrorConstants {
         public static final String TRANSACTION_NOT_FOUND_PREFIX = "Transaction not found with id: ";
         /** Format with the sender phone. */
         public static final String INSUFFICIENT_BALANCE = "Wallet %s does not have enough balance for this transfer and its fee.";
-        public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
-        /** Format with the wallet phone and its account type. */
         /** Format with the minimum amount in poisha and in BDT. */
         public static final String AMOUNT_BELOW_MIN = "amount must be at least %d poisha (%s BDT)";
         /** Format with the maximum amount in poisha and in BDT. */
         public static final String AMOUNT_ABOVE_MAX = "amount must be at most %d poisha (%s BDT)";
         /** Format with the fee, the single-transaction limit and the resulting maximum amount, each in poisha and BDT. */
         public static final String AMOUNT_PLUS_FEE_ABOVE_MAX = "amount plus the transfer fee of %d poisha (%s BDT) must be at most %d poisha (%s BDT), so amount must be at most %d poisha (%s BDT)";
+        public static final String SAME_WALLET_TRANSFER = "Sender and receiver must be different wallets.";
+        /** Format with the wallet phone and its account type. */
         public static final String SYSTEM_WALLET_NOT_ALLOWED =
                 "Wallet %s is a %s ledger account, not a customer wallet, and cannot take part in this operation.";
         public static final String INVALID_DATE_RANGE = "from must not be after to";
@@ -84,6 +86,8 @@ public final class ErrorConstants {
         public static final String CUSTOMER_PHONE_FORMAT = AppConstants.CUSTOMER_PHONE_FORMAT;
         /** Format with the HTTP method. */
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
+        public static final String UNSUPPORTED_MEDIA_TYPE = "Content-Type is not supported, use application/json";
+        public static final String NOT_ACCEPTABLE = "This API only produces application/json";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";
     }

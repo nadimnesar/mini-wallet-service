@@ -106,6 +106,28 @@ class WalletApiIntegrationTest extends AbstractIntegrationTest {
                 });
     }
 
+    @Test
+    void unsupportedContentTypeIs415InTheStandardErrorFormat() {
+        api.post().uri("/api/v1/wallets").contentType(MediaType.TEXT_PLAIN).body("x")
+                .exchange((request, response) -> {
+                    JsonNode body = JSON.readTree(response.getBody());
+                    assertEquals(415, response.getStatusCode().value(), body.toString());
+                    assertEquals("UNSUPPORTED_MEDIA_TYPE", body.get("error").get("code").asString());
+                    return null;
+                });
+    }
+
+    @Test
+    void unacceptableAcceptHeaderIs406InTheStandardErrorFormat() {
+        api.get().uri("/api/v1/wallets/" + PHONE).accept(MediaType.APPLICATION_XML)
+                .exchange((request, response) -> {
+                    JsonNode body = JSON.readTree(response.getBody());
+                    assertEquals(406, response.getStatusCode().value(), body.toString());
+                    assertEquals("NOT_ACCEPTABLE", body.get("error").get("code").asString());
+                    return null;
+                });
+    }
+
     private JsonNode get(String uri) {
         return api.get().uri(uri).retrieve().body(JsonNode.class);
     }
