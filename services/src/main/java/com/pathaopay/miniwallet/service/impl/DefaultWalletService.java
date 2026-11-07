@@ -32,7 +32,7 @@ public class DefaultWalletService implements WalletService {
     @Override
     @Transactional
     public WalletResponse createWallet(CreateWalletRequest request) {
-        String phone = PhoneNumberUtils.normalize(request.phone());
+        String phone = PhoneNumberUtils.normalizeCustomer(request.phone());
         if (AppConstants.SYSTEM_USER_ID.equals(request.userId())) {
             log.info("Wallet creation rejected, user_id is reserved for system accounts");
             throw new DuplicateWalletException(ErrorMessage.DUPLICATE_WALLET_PREFIX + request.userId());

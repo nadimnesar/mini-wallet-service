@@ -247,6 +247,10 @@ class LedgerIntegrityIntegrationTest extends AbstractIntegrationTest {
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "12345"));
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01711000001"));
         assertRejected(() -> insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, AppConstants.REVENUE_WALLET_PHONE));
+        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01011000001"));
+        assertRejected(() -> insertWallet("LIABILITY", UUID.randomUUID(), "01211000001"));
+        insertWallet("LIABILITY", UUID.randomUUID(), "01311000001");
+        insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01011000009");
         insertWallet("EXPENSE", AppConstants.SYSTEM_USER_ID, "01911000003");
     }
 

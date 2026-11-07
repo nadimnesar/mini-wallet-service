@@ -17,7 +17,8 @@ CREATE TABLE wallets
     CONSTRAINT ck_wallets_owner CHECK (
         (type = 'LIABILITY' AND user_id <> '00000000-0000-7000-8000-000000000002')
             OR (type <> 'LIABILITY' AND user_id = '00000000-0000-7000-8000-000000000002')),
-    CONSTRAINT ck_wallets_phone_format CHECK (phone ~ '^01[0-9]{9}$')
+    CONSTRAINT ck_wallets_phone_format CHECK (
+        phone ~ '^01[0-9]{9}$' AND (type <> 'LIABILITY' OR phone ~ '^01[3-9][0-9]{8}$'))
 );
 CREATE UNIQUE INDEX uq_wallets_customer_user_id ON wallets (user_id) WHERE type = 'LIABILITY';
 --rollback DROP TABLE wallets;

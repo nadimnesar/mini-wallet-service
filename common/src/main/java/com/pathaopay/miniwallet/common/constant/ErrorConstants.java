@@ -75,6 +75,7 @@ public final class ErrorConstants {
         public static final String RESOURCE_NOT_FOUND = "Resource not found";
         public static final String INVALID_PHONE_NUMBER = AppConstants.PHONE_FORMAT;
         /** Format with the HTTP method. */
+        public static final String CUSTOMER_PHONE_FORMAT = AppConstants.CUSTOMER_PHONE_FORMAT;
         public static final String METHOD_NOT_SUPPORTED = "HTTP method %s is not supported for this endpoint";
         public static final String UNEXPECTED_ERROR = "An unexpected error occurred. Please try again later.";
         public static final String UNHANDLED_EXCEPTION_LOG = "Unhandled server exception encountered: ";

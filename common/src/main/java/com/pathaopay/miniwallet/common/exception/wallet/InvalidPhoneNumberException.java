@@ -8,4 +8,8 @@ public class InvalidPhoneNumberException extends MiniWalletException {
     public InvalidPhoneNumberException() {
         super(ErrorCode.INVALID_PHONE_NUMBER, ErrorMessage.INVALID_PHONE_NUMBER);
     }
+
+    public InvalidPhoneNumberException(String message) {
+        super(ErrorCode.INVALID_PHONE_NUMBER, message);
+    }
 }

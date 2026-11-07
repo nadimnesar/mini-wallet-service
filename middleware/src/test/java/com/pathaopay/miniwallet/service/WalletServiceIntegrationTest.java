@@ -51,12 +51,24 @@ class WalletServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void rejectsPhonesOfSystemAccounts() {
-        assertThrows(DuplicatePhoneException.class,
+        assertThrows(InvalidPhoneNumberException.class,
                 () -> walletService.createWallet(new CreateWalletRequest(user("u_1001"), AppConstants.REVENUE_WALLET_PHONE)));
         assertEquals(0, walletCount());
     }
 
     @Test
+    @Test
+    void rejectsUnassignedOperatorPrefixes() {
+        for (String phone : List.of("01011000001", "01111000001", "01211000001", "1011000001", "+8801011000001")) {
+            assertThrows(InvalidPhoneNumberException.class,
+                    () -> walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), phone)), phone);
+        }
+        assertEquals(0, walletCount());
+        walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01311000001"));
+        walletService.createWallet(new CreateWalletRequest(UUID.randomUUID(), "01911000001"));
+        assertEquals(2, walletCount());
+    }
+
     void rejectsTheUserIdReservedForSystemAccounts() {
         assertThrows(DuplicateWalletException.class,
                 () -> walletService.createWallet(new CreateWalletRequest(AppConstants.SYSTEM_USER_ID, "01711000001")));
