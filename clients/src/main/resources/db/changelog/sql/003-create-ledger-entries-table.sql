@@ -50,6 +50,21 @@ CREATE INDEX ix_ledger_entries_transaction ON ledger_entries (transaction_id);
 CREATE INDEX ix_ledger_entries_wallet_created_at
     ON ledger_entries (wallet_id, created_at DESC);
 
+-- ledger_assert_transaction_balanced(): trigger function that checks one transaction's legs once it is complete.
+--   Why:  double entry only holds if every transaction posts exactly the legs its type requires and debits equal
+--         credits. A per-row CHECK cannot see sibling rows, so this function looks at all legs of the transaction.
+--   When: it is attached as a DEFERRABLE INITIALLY DEFERRED constraint trigger (AFTER INSERT, FOR EACH ROW) on both
+--         ledger_entries and transactions. "Deferred" means it does not run per statement: it runs at COMMIT, once the
+--         transactions row and all its ledger_entries are inserted, in any order. Every inserted row queues one
+--         call, so the same transaction is checked several times, which is harmless. Nothing runs after commit, and a
+--         failure aborts the whole commit, so an unbalanced transaction can never become visible.
+--   How:  1. find the transaction id (NEW.id on transactions, NEW.transaction_id on ledger_entries);
+--         2. require at least two legs and SUM(debits) = SUM(credits);
+--         3. require the exact leg set of the type: ADD_MONEY = GATEWAY_CLEARING + ADD_MONEY, TRANSFER = TRANSFER_OUT +
+--            TRANSFER_IN + FEE_OUT + FEE_IN, with the principal legs equal to transactions.amount;
+--         4. raise SQLSTATE 23514 (check violation) if any step fails. The return value of an AFTER trigger is ignored.
+--         Because the check happens at commit, legs cannot be added to an already committed transaction either: the
+--         new row queues a check that sees the extra leg and fails.
 CREATE FUNCTION ledger_assert_transaction_balanced() RETURNS trigger
     LANGUAGE plpgsql AS
 $$
@@ -95,16 +110,20 @@ BEGIN
 END;
 $$;
 
+-- Fires for each inserted ledger leg, checked at commit.
 CREATE CONSTRAINT TRIGGER trg_ledger_entries_balanced
     AFTER INSERT ON ledger_entries
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION ledger_assert_transaction_balanced();
 
+-- Fires for each inserted transactions row, checked at commit: it rejects a transaction that was inserted
+-- without any legs (the ledger_entries trigger would never fire for it).
 CREATE CONSTRAINT TRIGGER trg_transactions_balanced
     AFTER INSERT ON transactions
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION ledger_assert_transaction_balanced();
 
+-- Append-only guard for ledger_entries (uses ledger_reject_change() from changeset 002).
 CREATE TRIGGER trg_ledger_entries_append_only
     BEFORE UPDATE OR DELETE ON ledger_entries
     FOR EACH ROW EXECUTE FUNCTION ledger_reject_change();

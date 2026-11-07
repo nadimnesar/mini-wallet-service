@@ -21,6 +21,13 @@ CREATE TABLE transactions
             OR (type <> 'ADD_MONEY' AND gateway_ref IS NULL AND payment_method IS NULL))
 );
 
+-- ledger_reject_change(): trigger function that makes a table append-only.
+--   Why:  the ledger is the source of truth for every balance, so a posted row must never be edited or removed.
+--         Service code never updates or deletes, but this stops a bug, a manual SQL fix or a bad migration too.
+--   When: it is attached BEFORE UPDATE OR DELETE, FOR EACH ROW, to transactions (below) and to ledger_entries
+--         (changeset 003). It runs before the change touches the row and always raises, so the statement fails
+--         and rolls back its transaction. INSERT is not affected.
+--   How:  RAISE EXCEPTION with SQLSTATE 23000 (integrity constraint violation), naming the table via TG_TABLE_NAME.
 CREATE FUNCTION ledger_reject_change() RETURNS trigger
     LANGUAGE plpgsql AS
 $$
@@ -29,6 +36,7 @@ BEGIN
 END;
 $$;
 
+-- Blocks every UPDATE and DELETE on transactions.
 CREATE TRIGGER trg_transactions_append_only
     BEFORE UPDATE OR DELETE ON transactions
     FOR EACH ROW EXECUTE FUNCTION ledger_reject_change();
