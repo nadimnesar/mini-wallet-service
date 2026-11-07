@@ -4,7 +4,7 @@ import com.pathaopay.miniwallet.common.constant.ErrorConstants.ErrorCode;
 import com.pathaopay.miniwallet.common.exception.MiniWalletException;
 
 /**
- * The gateway has not captured the payment yet (for example 3-D Secure is in progress).
+ * The gateway has not captured the payment yet.
  * Transient: it is checked again later.
  */
 public class PaymentPendingException extends MiniWalletException {
