@@ -500,6 +500,40 @@ class AddMoneyIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    void anAcceptedRequestIsCreditedEvenIfTheLimitsChangeBeforeItIsProcessed() {
+        // Two requests accepted under the default limits (stored directly and marked published, so the dispatcher
+        // leaves them alone and the test controls when they are processed). The customer has paid both.
+        UUID belowNewMin = acceptedRequest(50000, ref("GW-1"));
+        UUID aboveNewMax = acceptedRequest(70000, ref("GW-2"));
+        setLimit("ADD_MONEY", 60000, 60000);
+        try {
+            transactionService.processAddMoney(belowNewMin);
+            transactionService.processAddMoney(aboveNewMax);
+        } finally {
+            setLimit("ADD_MONEY", 100, 2_500_000);
+        }
+
+        for (UUID requestId : List.of(belowNewMin, aboveNewMax)) {
+            JsonNode status = get("/api/v1/wallets/add-money/" + requestId).body();
+            assertEquals("COMPLETED", status.get("status").asString(), status.toString());
+        }
+        assertEquals(120000, balanceOf(phone));
+        assertEquals(2, ledgerEntries());
+    }
+
+    /** Stores a PENDING request as acceptance would, with published_at set so the dispatcher does not pick it up. */
+    private UUID acceptedRequest(long amount, String gatewayRef) {
+        UUID id = UUID.randomUUID();
+        jdbcClient.sql("INSERT INTO " + AddMoneyRequests.TABLE + " (" + String.join(", ", AddMoneyRequests.ID,
+                        AddMoneyRequests.WALLET_ID, AddMoneyRequests.AMOUNT, AddMoneyRequests.GATEWAY_REF,
+                        AddMoneyRequests.PAYMENT_METHOD, AddMoneyRequests.PUBLISHED_AT) + ")"
+                        + " VALUES (:id, :walletId, :amount, CAST(:ref AS UUID), 'VISA', now())")
+                .param("id", id).param("walletId", walletId).param("amount", amount).param("ref", gatewayRef)
+                .update();
+        return id;
+    }
+
     private void setLimit(String type, long min, long max) {
         jdbcClient.sql("UPDATE " + Limits.TABLE + " SET " + Limits.MIN_AMOUNT + " = :min, " + Limits.MAX_AMOUNT
                 + " = :max WHERE " + Limits.TRANSACTION_TYPE + " = :type")

@@ -112,9 +112,12 @@ public class AddMoneyProcessor {
     /**
      * Records the add-money transaction: DEBIT the gateway clearing asset account and CREDIT the customer's liability
      * wallet, both for the captured amount, once the card gateway confirms the payment.
+     *
+     * <p>The amount limits are not checked again here: they were enforced when the request was accepted, and the
+     * customer has paid since. Re-reading the limits table would fail a paid request if a limit changed while it was
+     * pending.
      */
     private Credited creditWallet(AddMoneyRequestRecord request) {
-        rules.requireWithinLimit(TransactionType.ADD_MONEY, request.amount(), 0);
         String phone = responses.phoneOf(request.walletId());
         Wallet wallet = rules.requireCustomerWallet(phone);
         UUID walletId = wallet.id();
