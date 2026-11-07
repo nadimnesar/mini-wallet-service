@@ -302,7 +302,7 @@ components:
         from_phone: { type: string, example: '01712345678', description: 'Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; normalized to 01XXXXXXXXX' }
         to_phone: { type: string, example: '01712345678', description: 'Accepts 1XXXXXXXXX, 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX; normalized to 01XXXXXXXXX' }
         amount: { $ref: '#/components/schemas/Amount' }
-        note: { type: string, maxLength: 255 }
+        note: { type: string, minLength: 1, maxLength: 255 }
 
     TransferResponse:
       type: object
@@ -314,6 +314,7 @@ components:
         to_phone: { type: string, example: '01712345678' }
         amount: { type: integer, format: int64 }
         fee: { type: integer, format: int64, description: Fee in poisha charged to the sender on top of amount (500 = 5 BDT) }
+        note: { type: [string, 'null'], maxLength: 255 }
         status: { type: string, enum: [COMPLETED] }
         created_at: { type: string, format: date-time }
 
@@ -341,6 +342,7 @@ components:
         amount: { type: integer, format: int64, description: Principal moved; a transfer's fee is a separate pair of entries }
         gateway_ref: { type: [string, 'null'], format: uuid, description: Set for ADD_MONEY only }
         payment_method: { oneOf: [{ $ref: '#/components/schemas/PaymentMethod' }, { type: 'null' }] }
+        note: { type: [string, 'null'], maxLength: 255, description: Set for TRANSFER only }
         created_at: { type: string, format: date-time }
         entries:
           type: array
