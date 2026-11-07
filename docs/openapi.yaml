@@ -208,7 +208,7 @@ components:
       in: header
       required: true
       description: Same key and body replays the stored result; same key with a different body returns 422.
-      schema: { type: string, minLength: 1, maxLength: 255 }
+      schema: { type: string, minLength: 1, maxLength: 255, example: 'add-money-0001' }
 
   responses:
     Error:
@@ -240,7 +240,7 @@ components:
       type: object
       required: [user_id, phone]
       properties:
-        user_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid, example: '0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b', description: Any UUID except the reserved system user id; unique per customer wallet }
         phone:
           type: string
           pattern: '^(?:\+?880|0)?(1[3-9]\d{8})$'
@@ -278,7 +278,8 @@ components:
         gateway_ref:
           type: string
           format: uuid
-          description: Payment reference from the card gateway; credits only once
+          example: '0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b'
+          description: Payment reference from the card gateway; credits only once. The mock gateway picks the outcome from a reserved prefix (see README); this example is captured
         payment_method: { $ref: '#/components/schemas/PaymentMethod' }
 
     AddMoneyResponse:
